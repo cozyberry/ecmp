@@ -106,8 +106,15 @@ def main():
 #E-step
     for i in range(0,iterSN):
         mnb=buildNB(xtrain,ytrain)
-        yproba=mnb.predict_proba(xtrain)
-        #ytrain=mnb.predict(xtrain)
+        #print i
+        for j in range(0,numrows):
+            yproba_j=mnb.predict_proba(xtrain[j])
+            rclass_j=np.random.multinomial(1,yproba_j[0],size=1)
+            ytrain[j]=np.nonzero(rclass_j[0])[0][0]
+    for i in range(0,iterCN):
+        print i
+        mnb=buildNB(xtrain,ytrain)
+        ytrain=mnb.predict(xtrain)
     #ccount=np.array(np.bincount(ytrain),float)
     #ccount=ccount/numrows
     #t_m=np.multiply(ccount,ytrain)
@@ -119,7 +126,11 @@ def testmnb(mnb,xtest,ytest):
     print "    Attributes:"
     print xtest[0]
     print "    The predicted Proba:"
-    print mnb.predict_proba(xtest[0])
+    pvals=mnb.predict_proba(xtest[0])
+    print pvals
+    rclass=np.random.multinomial(1,pvals,size=1)
+    print "random generated class:"
+    print rclass
     print "    The predicted Class:"
     print mnb.predict(xtest[0])
 

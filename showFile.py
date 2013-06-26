@@ -20,7 +20,7 @@ END   = "\33[0;0m"
 
 def usage():
     print START+"Usage:"+END
-    print "      %s [-i indexToSortbyStringValue] [-I indexToSortbyIntegerValue] [-e] [-n numToDisplay] [-s dayToShift] [-p] [-d] dictFiletoPrint "%sys.argv[0]
+    print "      %s [-i indexToSortbyStringValue] [-I indexToSortbyIntegerValue] [-e] [-n numToDisplay] [-s dayToShift] [-p] [-d] [-t] dictFiletoPrint "%sys.argv[0]
     print START+"Options:"+END
     print "      [-i indexToSortbyStringValue]: specify which column to sort by using string value, index starting from 1\n"
     print "      [-I indexToSortbyIntegerValue]: specify which column to sort by using integer value, index starting from 1\n"
@@ -29,10 +29,11 @@ def usage():
     print "      [-s dayToShift]: output last column as the date shifted"
     print "      [-p]: simply print fily by sorting"
     print "      [-d]: order from smallest to largest"
+    print "      [-t]: input file with title"
 
 def main(argv):
     try:
-        opts, args = getopt.getopt(argv,"hi:I:en:s:pd",["help"])
+        opts, args = getopt.getopt(argv,"hi:I:en:s:pdt",["help"])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -44,6 +45,7 @@ def main(argv):
     shift = 0 
     _print =False 
     _reverse = True
+    _title=False
 
     for opt,arg in opts:
         if opt in ("-h","--help"):           
@@ -68,6 +70,8 @@ def main(argv):
             _print = True
         elif opt in ("-d"):
             _reverse = False
+        elif opt in ("-t"):
+            _title= True 
         else:
             usage()
             sys.exit(1)
@@ -80,6 +84,9 @@ def main(argv):
 
     f=open(statinput,'r')
     records=[]
+    title=""
+    if(_title):
+        title=f.readline()
     for line in f:
         fields=string.split(string.strip(line),",")
         if isInt:
@@ -90,7 +97,8 @@ def main(argv):
 
     if num== -1 or num > len(sortedList):
         num=len(sortedList)
-
+    if _title:
+        print title,
     if _print:
         for i in range(0,num):
             first = True

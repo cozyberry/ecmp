@@ -119,9 +119,10 @@ def main(argv):
             #print "len of titlefs[0]: %d"%len(titlefs[0])
             #print "ori: %s$"%titlefs[0]
             #print fLen[0]
-            atitle=string.ljust(titlefs[0],fLen[0]," ")
-            for ti in range(1,len(titlefs)):
-                atitle=atitle+","+string.ljust(titlefs[ti],fLen[ti]," ")
+            atitle=""
+            for ti in range(0,len(titlefs)):
+                atitle=atitle+string.ljust(titlefs[ti]+",",fLen[ti]+1," ")
+            atitle=string.strip(atitle,",")
             print atitle
 
     if _print:
@@ -139,10 +140,11 @@ def main(argv):
         else: 
             for i in range(0,num):
                 item=sortedList[i][0]
-                tmpline=string.ljust(str(item),fLen[0]," ")
-                for itemj in range(1,len(sortedList[i])):
+                tmpline=""
+                for itemj in range(0,len(sortedList[i])):
                     item=str(sortedList[i][itemj])
-                    tmpline=tmpline+","+string.ljust(item,fLen[itemj]," ")
+                    tmpline=tmpline+string.ljust(item+",",fLen[itemj]+1," ")
+                tmpline=string.strip(tmpline,",")
                 print tmpline
 
     else:

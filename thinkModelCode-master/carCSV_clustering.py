@@ -94,7 +94,7 @@ def main():
     numrows,xdata_ml,ydata=initData(DATAPATH)
 #Initializing step of target
     ydataf= -1*np.ones_like(ydata);
-    numc=4
+    numc=3
     for i in range(0,numrows):
         ydataf[i]=random.randint(0,numc)
     #No need for spliting training data and testing data
@@ -102,6 +102,7 @@ def main():
     xtrain=xdata_ml
     ytrain=ydataf
     iterSN=200
+    #iterCN=5
     iterCN=100
 #E-step
     for i in range(0,iterSN):
@@ -111,8 +112,13 @@ def main():
             yproba_j=mnb.predict_proba(xtrain[j])
             rclass_j=np.random.multinomial(1,yproba_j[0],size=1)
             ytrain[j]=np.nonzero(rclass_j[0])[0][0]
+            #if i==0 and ytrain[j]==4:
+                #print "ytrain[%d]: %d"%(j,ytrain[j])
+                #print yproba_j
     for i in range(0,iterCN):
-        print i
+        if i == 0:
+            print ytrain
+        #print i
         mnb=buildNB(xtrain,ytrain)
         ytrain=mnb.predict(xtrain)
     #ccount=np.array(np.bincount(ytrain),float)

@@ -116,15 +116,12 @@ def main(argv):
         if not _align:
             print title,
         else:
-            print "here"
-            print "len of titlefs[0]: %d"%len(titlefs[0])
-            atitle=string.ljust(string.strip(titlefs[0]),fLen[0]," ")
-            print "cur length of atitle: %d"%len(atitle)
-            print "fLen[0]: %d"%fLen[0]
+            #print "len of titlefs[0]: %d"%len(titlefs[0])
+            #print "ori: %s$"%titlefs[0]
+            #print fLen[0]
+            atitle=string.ljust(titlefs[0],fLen[0]," ")
             for ti in range(1,len(titlefs)):
                 atitle=atitle+","+string.ljust(titlefs[ti],fLen[ti]," ")
-                print "cur length of atitle: %d"%len(atitle)
-                print "fLen[%d]: %d"%(ti,fLen[ti])
             print atitle
 
     if _print:

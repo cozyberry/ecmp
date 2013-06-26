@@ -20,7 +20,7 @@ END   = "\33[0;0m"
 
 def usage():
     print START+"Usage:"+END
-    print "      %s [-i indexToSortbyStringValue] [-I indexToSortbyIntegerValue] [-e] [-n numToDisplay] [-s dayToShift] [-p] [-d] [-t] dictFiletoPrint "%sys.argv[0]
+    print "      %s [-i indexToSortbyStringValue] [-I indexToSortbyIntegerValue] [-e] [-n numToDisplay] [-s dayToShift] [-p] [-d] [-t] [-a] dictFiletoPrint "%sys.argv[0]
     print START+"Options:"+END
     print "      [-i indexToSortbyStringValue]: specify which column to sort by using string value, index starting from 1\n"
     print "      [-I indexToSortbyIntegerValue]: specify which column to sort by using integer value, index starting from 1\n"
@@ -30,10 +30,11 @@ def usage():
     print "      [-p]: simply print fily by sorting"
     print "      [-d]: order from smallest to largest"
     print "      [-t]: input file with title"
+    print "      [-a]: allign output according to field. Only works in print option"
 
 def main(argv):
     try:
-        opts, args = getopt.getopt(argv,"hi:I:en:s:pdt",["help"])
+        opts, args = getopt.getopt(argv,"hi:I:en:s:pdta",["help"])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -46,6 +47,7 @@ def main(argv):
     _print =False 
     _reverse = True
     _title=False
+    _align=False
 
     for opt,arg in opts:
         if opt in ("-h","--help"):           
@@ -72,6 +74,8 @@ def main(argv):
             _reverse = False
         elif opt in ("-t"):
             _title= True 
+        elif opt in ("-a"):
+            _align= True 
         else:
             usage()
             sys.exit(1)
@@ -83,12 +87,23 @@ def main(argv):
         sys.exit(2)
 
     f=open(statinput,'r')
+    if _align:
+        fLen=[]
     records=[]
     title=""
     if(_title):
         title=f.readline()
+        if _align:
+            titlefs=string.split(string.strip(title," ,\r\n"),",")
+            for ti in range(0,len(titlefs)):
+                    fLen.append(len(titlefs[ti]))
     for line in f:
-        fields=string.split(string.strip(line),",")
+        fields=string.split(string.strip(line,",\r\n "),",")
+        if _align:
+            for ti in range(0,len(fields)):
+                    if len(fields[ti]) > fLen[ti]:
+                        fLen[ti]=len(fields[ti])
+                
         if isInt:
             fields[index]=int(fields[index])
         records.append(fields)
@@ -98,18 +113,40 @@ def main(argv):
     if num== -1 or num > len(sortedList):
         num=len(sortedList)
     if _title:
-        print title,
+        if not _align:
+            print title,
+        else:
+            print "here"
+            print "len of titlefs[0]: %d"%len(titlefs[0])
+            atitle=string.ljust(string.strip(titlefs[0]),fLen[0]," ")
+            print "cur length of atitle: %d"%len(atitle)
+            print "fLen[0]: %d"%fLen[0]
+            for ti in range(1,len(titlefs)):
+                atitle=atitle+","+string.ljust(titlefs[ti],fLen[ti]," ")
+                print "cur length of atitle: %d"%len(atitle)
+                print "fLen[%d]: %d"%(ti,fLen[ti])
+            print atitle
+
     if _print:
-        for i in range(0,num):
-            first = True
-            tmpline=""
-            for item in sortedList[i]:
-                if first:
-                    tmpline=item
-                    first = False
-                else:
-                    tmpline=tmpline+","+str(item)
-            print tmpline
+        if not _align:
+            for i in range(0,num):
+                first = True
+                tmpline=""
+                for item in sortedList[i]:
+                    if first:
+                        tmpline=str(item)
+                        first = False
+                    else:
+                        tmpline=tmpline+","+str(item)
+                print tmpline
+        else: 
+            for i in range(0,num):
+                item=sortedList[i][0]
+                tmpline=string.ljust(str(item),fLen[0]," ")
+                for itemj in range(1,len(sortedList[i])):
+                    item=str(sortedList[i][itemj])
+                    tmpline=tmpline+","+string.ljust(item,fLen[itemj]," ")
+                print tmpline
 
     else:
         if _ecfield:

@@ -90,7 +90,7 @@ def buildNB(xtrain,ytrain):
     mnb.fit(xtrain,ytrain);
     return mnb
 
-def main():
+def main_v0():
     random.seed()
     numrows,xdata_ml,ydata=initData(DATAPATH)
 #Initializing step of target
@@ -157,4 +157,4 @@ def testmnb(mnb,xtest,ytest):
     print mnb.predict(xtest[1])
 
 if __name__=='__main__':
-    main()
+    main_v0()

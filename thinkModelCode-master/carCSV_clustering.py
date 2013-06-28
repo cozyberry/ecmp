@@ -8,6 +8,7 @@ import csv
 import random
 import urllib
 import random
+from numpy import linalg as LA
 
 DATAPATH="/home/wei/data_processing/data/car/car.data"
 
@@ -101,9 +102,9 @@ def main():
     #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
     xtrain=xdata_ml
     ytrain=ydataf
-    iterSN=200
+    iterSN=10
     #iterCN=5
-    iterCN=100
+    iterCN=20
 #E-step
     for i in range(0,iterSN):
         mnb=buildNB(xtrain,ytrain)
@@ -116,11 +117,18 @@ def main():
                 #print "ytrain[%d]: %d"%(j,ytrain[j])
                 #print yproba_j
     for i in range(0,iterCN):
-        if i == 0:
-            print ytrain
-        #print i
+        #if i == 0:
+            #print ytrain
+        print i
+        oldytrain=ytrain
         mnb=buildNB(xtrain,ytrain)
         ytrain=mnb.predict(xtrain)
+        diffytrain=ytrain-oldytrain
+        diff=LA.norm(diffytrain)
+        print diff
+        if diff < 5:
+            break
+
     #ccount=np.array(np.bincount(ytrain),float)
     #ccount=ccount/numrows
     #t_m=np.multiply(ccount,ytrain)

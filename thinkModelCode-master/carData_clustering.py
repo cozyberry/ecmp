@@ -83,8 +83,8 @@ def main():
     numrows,xdata_ml,ydata=initData(DATAPATH)
     xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydata)
     mnb=buildNB(xtrain,ytrain)
-    #testmnb(mnb,xtest,ytest)
-    testmnb0(mnb,xtest[0],True)
+    testmnb(mnb,xtest,ytest)
+    #testmnb0(mnb,xtest[0],True)
     print "Classification accuracy of MNB = ", mnb.score(xtest,ytest)
 
 def predict_proba0(mnb,x):
@@ -103,12 +103,6 @@ def predict_proba0(mnb,x):
     #res=np.multiply(tmp,llp)
     #print "res:"
     #print res
-    print "intercept_"
-    print mnb.intercept_
-    a=mnb.class_log_prior_
-    mnb.class_log_prior_= np.array([0.0,0.0,0.5,0.5],float)
-    print "intercept_"
-    print mnb.intercept_
     sum1=np.sum(llp,axis=1)+mnb.intercept_
     print "sum1:"
     print sum1
@@ -132,11 +126,21 @@ def testmnb0(mnb,x,allone=False):
     print "scikit predict proba for all one"
     print mnb.predict_proba(x0)
 
-    predict_proba0(mnb,x0)
+    #predict_proba0(mnb,x0)
     
 
 def testmnb(mnb,xtest,ytest):
-    print "intercept for mnb:"
+    numrows=np.size(xtest,0)
+    print "Test qy"
+    print "original intercept_"
+    print mnb.intercept_
+
+#E-step
+    sigma_yx=mnb.predict_proba(xtest)
+#S-step
+    q_y=np.sum(sigma_yx,axis=0)/numrows 
+    mnb.class_log_prior_=np.log(q_y)
+    print "new intercep_:"
     print mnb.intercept_
     #print np.size(mnb.intercept_,0)
     print "feature_log_prob_"

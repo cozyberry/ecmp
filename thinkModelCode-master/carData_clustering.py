@@ -83,22 +83,90 @@ def main():
     numrows,xdata_ml,ydata=initData(DATAPATH)
     xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydata)
     mnb=buildNB(xtrain,ytrain)
-    testmnb(mnb,xtest,ytest)
+    #testmnb(mnb,xtest,ytest)
+    testmnb0(mnb,xtest[0],True)
     print "Classification accuracy of MNB = ", mnb.score(xtest,ytest)
 
-def testmnb(mnb,xtest,ytest):
+def predict_proba0(mnb,x):
+    nc=np.size(mnb.intercept_,0)
+    print "x:"
+    print x
+    ##calculate (1-2*x)*x_proba+x_proba
+    #print "1-2*x:"
+    #tmp=1-2*x
+    #print tmp
+    llp=mnb.feature_log_prob_
+    print "llp:"
+    print llp
+    print "size of coef_: %d * %d"%(np.size(mnb.coef_,0),np.size(mnb.coef_,1))
+    print mnb.coef_
+    #res=np.multiply(tmp,llp)
+    #print "res:"
+    #print res
+    print "intercept_"
+    print mnb.intercept_
+    a=mnb.class_log_prior_
+    mnb.class_log_prior_= np.array([0.0,0.0,0.5,0.5],float)
+    print "intercept_"
+    print mnb.intercept_
+    sum1=np.sum(llp,axis=1)+mnb.intercept_
+    print "sum1:"
+    print sum1
+    sumexp=np.exp(sum1)
+    print sumexp
+    sum2=np.sum(sumexp)
+    print "after nomalized"
+    norsum=sumexp/sum2
+    print norsum
+    print np.sum(norsum)
+    
+    #llp=np.inner(mnb.in
+    
+def testmnb0(mnb,x,allone=False):
+    x0=np.array(np.zeros_like(x),int)
+    print "scikit predict proba for all zero"
+    print mnb.predict_proba(x0)
+    if allone:
+        x0=np.array(np.ones_like(x),int)
 
+    print "scikit predict proba for all one"
+    print mnb.predict_proba(x0)
+
+    predict_proba0(mnb,x0)
+    
+
+def testmnb(mnb,xtest,ytest):
+    print "intercept for mnb:"
+    print mnb.intercept_
+    #print np.size(mnb.intercept_,0)
+    print "feature_log_prob_"
+    flp = mnb.feature_log_prob_
+    print flp
+    print "feature_log_prob_ size: %d * %d"%(np.size(flp,0),np.size(flp,1))
+    print "xtest size: %d"%(np.size(xtest[0],0))
+    #mnb.intercept_=np.array([[0 0 0 1]],float)
+    #a=mnb.intercept_
+    #mnb.intercept_=a
+    print "test my llg"
+    predict_proba0(mnb,xtest[0])
+
+    print "mnb.intercept_ type"
+    print type(mnb.intercept_)
     print "One case:"
     print "    Attributes:"
     print xtest[0]
     print "    The predicted Proba:"
     pvals=mnb.predict_proba(xtest[0])
+    print "sum:"
+    print np.sum(pvals)
     print pvals
-    rclass=np.random.multinomial(1,pvals,size=1)
+    #rclass=np.random.multinomial(1,[1/6.]*6,size=1)
+    rclass=np.random.multinomial(1,pvals[0],size=1)
     print "random generated class:"
     print rclass
     print "    The predicted Class:"
     print mnb.predict(xtest[0])
+    print mnb.get_params(True)
 '''
     print "One case:"
     print "    Attributes:"

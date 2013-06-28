@@ -7,6 +7,7 @@ import numpy as np
 import csv
 import random
 import urllib
+from sklearn.utils.extmath import safe_sparse_dot, logsumexp
 
 DATAPATH="/home/wei/data_processing/data/car/car.data"
 
@@ -130,18 +131,49 @@ def testmnb0(mnb,x,allone=False):
     
 
 def testmnb(mnb,xtest,ytest):
-    numrows=np.size(xtest,0)
-    print "Test qy"
+    numrows=5
+    xtest=xtest[0:numrows,:]
+    print "size of xtest: %d * %d"%(np.size(xtest,0),np.size(xtest,1))
+    print "%d samples:"%numrows
+    print "Test Begins"
     print "original intercept_"
     print mnb.intercept_
 
 #E-step
     sigma_yx=mnb.predict_proba(xtest)
+    print "sigma_yx: in fact the predict_proba"
+    print sigma_yx
 #S-step
     q_y=np.sum(sigma_yx,axis=0)/numrows 
+    print "q_y"
+    print q_y
     mnb.class_log_prior_=np.log(q_y)
     print "new intercep_:"
     print mnb.intercept_
+    print "Original feature_log_prob_"
+    print mnb.coef_
+    print "Original sum test"
+    print np.sum(np.exp(mnb.coef_),axis=1)
+    #ncx = safe_sparse_dot(sigma_yx.T, xtest)
+    ncx = safe_sparse_dot(sigma_yx.T, xtest)+mnb.alpha
+    print "ncx"
+    print ncx
+    ncxsum=np.sum(ncx,axis=1)
+    print "ncx sum operation"
+    print ncxsum
+    print "q_y"
+    print q_y
+    print "relation between q_y and ncxsum"
+    print np.divide(ncxsum,q_y)
+
+    qxy=np.divide(ncx.T,ncxsum).T
+    print "test sum on qxy"
+    print np.sum(qxy,axis=1)
+    mnb.feature_log_prob_=np.log(qxy)
+    print "new feature_log_prob_"
+    print mnb.coef_
+    print "new sum test"
+    print np.sum(np.exp(mnb.coef_),axis=1)
     #print np.size(mnb.intercept_,0)
     print "feature_log_prob_"
     flp = mnb.feature_log_prob_

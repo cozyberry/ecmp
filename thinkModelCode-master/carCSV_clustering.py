@@ -16,10 +16,11 @@ import itertools
 
 DATAPATH="/home/wei/data_processing/data/car/car.data"
 def usage():
-    print "%s [-n nonstochquqstic_iteration_times] [-s stochquastic_iteration_times] [-v]"
+    print "%s [-n nonstochquqstic_iteration_times] [-s stochquastic_iteration_times] [-v] [-l]"
     print "     [-n iteration_times]: set nonstochquastic iteration times for EM method. Default is 20"
     print "     [-s stochquastic_iteration_times]: set stochquastic iteration times for EM method. Default is 10"
     print "     [-v]: set verbose mode. Print other detail infomation"
+    print "     [-l]: set objective of maximization of log likelihood; by default maximiation of score. Need to analysize further"
 
 
 def initData(filename):
@@ -128,18 +129,38 @@ def validate(mnb,xtrain,ydata,numc):
 
     return maxscore,bestperm
 
-    
+def validate1(mnb,xtrain,ydata,numc):
+    ypredict=mnb.predict(xtrain)
+    allperms=itertools.permutations(range(0,numc))
+    ydata0=np.zeros_like(ydata)
+    numy=np.size(ydata,0)
+    maxscore = 0.0
+    #bestperm= allperms[0]
+    for oneperm in allperms:
+        for i in range(0,numy):
+            ydata0[i]=oneperm[ydata[i]]
+        #print oneperm
+        #for j in range(numy-10,numy-1):
+            #print "ydata[%d]: %d"%(j,ydata[j])
+            #print "ydata0[%d]: %d"%(j,ydata0[j])
+        tmpscore=mnb.score(xtrain,ydata0)
+        if tmpscore > maxscore:
+            maxscore = tmpscore
+            bestperm=oneperm
+
+    return maxscore,bestperm
 
 
 def main_v1(argv):
     try:
-        opts, args = getopt.getopt(argv,"hn:s:v",["help"])
+        opts, args = getopt.getopt(argv,"hn:s:vl",["help"])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
     iterCN = 20
     iterSN = 10
     _verbose = False
+    _maxlog  = False
     for opt,arg in opts:
         if opt in ("-h","--help"):           
             usage()
@@ -150,6 +171,8 @@ def main_v1(argv):
             iterSN = int(arg)
         elif opt in ("-v"):
             _verbose = True
+        elif opt in ("-l"):
+            _maxlog= True
 
     random.seed()
     numrows,xdata_ml,ydata=initData(DATAPATH)
@@ -157,15 +180,16 @@ def main_v1(argv):
     #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
     xtrain=xdata_ml
     #Right now it is the basic EM + NB model. Here we don't introduct stochastic operation
-    print "iteration time is set at: " ,iterCN
+    print "nonstochquastic iteration time is set at: " ,iterCN
+    print "stochquastic iteration time is set at: " ,iterSN
     
     numc=4
     for j in range(0,iterSN):
     #Initializing step of target
         ydataf= -1*np.ones_like(ydata);
-        for i in range(0,numrows):
+        for k in range(0,numrows):
             #randint is inclusive in both end
-            ydataf[i]=random.randint(0,numc-1)
+            ydataf[k]=random.randint(0,numc-1)
         ytrain=ydataf
 
     #initial
@@ -205,7 +229,7 @@ def main_v1(argv):
         #t_m=np.multiply(ccount,ytrain)
         #score = mnb.score(xtrain,ydata)
         final_log_prob = calcObj(mnb,xtrain)
-        score,tmpperm=validate(mnb,xtrain,ydata,numc)
+        score,tmpperm=validate1(mnb,xtrain,ydata,numc)
         if _verbose:
             print "Classification accuracy of MNB = ", score
             print "Final Log Prob of MNB = ",final_log_prob
@@ -220,14 +244,17 @@ def main_v1(argv):
                 print "Get better"
                 print "current best log prob vs this time: %f v.s. %f" %(bestlog_prob,final_log_prob)
                 print "current best score vs this time: %f v.s %f" %(best_accu,score)
-                bestMNB = mnb
-                bestlog_prob = final_log_prob
+                _noconflict = True
                 if score < best_accu:
                     print "Oh a conflict with score"
+                    _noconflict = False
                 print ""
-                best_accu = score
-                best_perm=tmpperm
-                best_iter = j
+                if _noconflict or _maxlog: 
+                    bestMNB = mnb
+                    bestlog_prob = final_log_prob
+                    best_accu = score
+                    best_perm=tmpperm
+                    best_iter = j
     print "Best one is at %dth iteration"%best_iter
     print "The corresponding score: ", best_accu
     print "The corresponding log_prob: ", bestlog_prob

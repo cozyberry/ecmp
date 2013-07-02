@@ -136,6 +136,13 @@ def testmnb(mnb,xtest,ytest):
     print "size of xtest: %d * %d"%(np.size(xtest,0),np.size(xtest,1))
     print "%d samples:"%numrows
     print "Test Begins"
+    jll = mnb._joint_log_likelihood(xtest)
+    print "jll"
+    print jll
+    # normalize by P(x) = P(f_1, ..., f_n)
+    log_prob_x = logsumexp(jll, axis=1)
+    print "log_prob_x"
+    print log_prob_x
     print "original intercept_"
     print mnb.intercept_
 

@@ -154,43 +154,207 @@ def validate1(mnb,xtrain,ydata,numc):
 
     return maxscore,bestperm
 
-def EMNB(xtrain,ytrain,numc,numrows,iterCN):
-#initial
-    mnb=buildNB(xtrain,ytrain)
+def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
+    if _VERBOSE:
+        if _MAXLOG:
+            print "NO_Class,NO_ITERSN,NO_ITERCN,LL,CUR_BEST_LL,DIFF_CPT,ACCURACY,comments"
+        else:
+            print "NO_Class,NO_ITERSN,NO_ITERCN,LL,DIFF_CPT,ACCURACY,CUR_BEST_ACCURACY,comments"
+
+    for j in range(0,ITERSN):
+    #Initializing step of target
+        ydataf= -1*np.ones_like(ydata);
+        for k in range(0,numrows):
+            #randint is inclusive in both end
+            ydataf[k]=random.randint(0,numc-1)
+        ytrain=ydataf
+    #initial
+        mnb=buildNB(xtrain,ytrain)
+        old_sigma_yx=np.array(np.zeros((numrows,numc)),float)
+        diff = 10000.0
+        for i in range(0,iterCN):
+        #E-step
+            sigma_yx=mnb.predict_proba(xtrain)
+            diff_sig=sigma_yx-old_sigma_yx
+            diff=LA.norm(diff_sig)
+
+            old_sigma_yx=sigma_yx
+        #S-step
+            q_y=np.sum(sigma_yx,axis=0)/numrows 
+            mnb.class_log_prior_=np.log(q_y)
+            #alpha is very import to smooth. or else in log when the proba is too small we got -inf
+            #ncx = safe_sparse_dot(sigma_yx.T, xtrain)+mnb.alpha
+            ncx = safe_sparse_dot(sigma_yx.T, xtrain)+mnb.alpha
+            ncxsum=np.sum(ncx,axis=1)
+            qxy=np.divide(ncx.T,ncxsum).T
+            mnb.feature_log_prob_=np.log(qxy)
+            if _VERBOSE:
+                if i%10 ==0 and i!=(iterCN-1):
+                    log_prob=calcObj(mnb,xtrain)
+                    tmpscore=mnb.score(mnb,xtrain)
+                    if _MAXLOG:
+                        print "%d,%d,%d,%f,,%f,%f"%(numc,j,i,log_proba,diff,tmpscore)
+                    else:
+                        print "%d,%d,%d,%f,%f,%f,"%(numc,j,i,log_proba,diff,tmpscore)
+
+
+        final_log_prob = calcObj(mnb,xtrain)
+        score,tmpperm=validate1(mnb,xtrain,ydata,numc)
+        if j==0:
+            best_accu=score
+            best_perm=tmpperm
+            bestMNB = mnb
+            bestlog_prob = final_log_prob
+            best_iter = 0
+        else:
+            if _MAXLOG:
+                if final_log_prob > bestlog_prob:
+                    _noconflict = True
+                    if score < best_accu:
+                        _noconflict = False
+                    if _VERBOSE:
+                        if _noconflict:
+                            print "%d,%d,%d,%f,%f,%f,%f,Better and NO conflict"%(numc,j,iterCN-1,final_log_proba,bestlog_prob,diff,score)
+                        else:
+                            print "%d,%d,%d,%f,%f,%f,%f,Better but conflict"%(numc,j,iterCN-1,final_log_proba,bestlog_prob,diff,score)
+                    bestMNB = mnb
+                    bestlog_prob = final_log_prob
+                    best_accu = score
+                    best_perm=tmpperm
+                    best_iter = j
+            else:
+                if score > best_accu:
+                    if _VERBOSE:
+                            print "%d,%d,%d,%f,%f,%f,%f,Better"%(numc,j,iterCN-1,final_log_proba,diff,score,best_accu)
+                    bestMNB = mnb
+                    bestlog_prob = final_log_prob
+                    best_accu = score
+                    best_perm=tmpperm
+                    best_iter = j
+                    
+
+    print "Best one is at %dth iteration"%best_iter
+    print "The corresponding score: ", best_accu
+    print "The corresponding log_prob: ", bestlog_prob
+
+def EMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
     if _VERBOSE:
         print "number of class:", numc
-    old_sigma_yx=np.array(np.zeros((numrows,numc)),float)
-    for i in range(0,iterCN):
-    #E-step
-          sigma_yx=mnb.predict_proba(xtrain)
-          diff_sig=sigma_yx-old_sigma_yx
-          diff=LA.norm(diff_sig)
-          if _VERBOSE:
-              if i%10 ==0:
-                  print "diff"
-                  print "%d th iteration:%f"%(i,diff)
-                  log_prob=calcObj(mnb,xtrain)
-                  print "log_prob"
-                  print "%d th iteration:%f"%(i,log_prob)
+    for j in range(0,ITERSN):
+        if _VERBOSE:
+            print j," th stochasic iteration"
+    #Initializing step of target
+        ydataf= -1*np.ones_like(ydata);
+        for k in range(0,numrows):
+            #randint is inclusive in both end
+            ydataf[k]=random.randint(0,numc-1)
+        ytrain=ydataf
+    #initial
+        mnb=buildNB(xtrain,ytrain)
+        old_sigma_yx=np.array(np.zeros((numrows,numc)),float)
+        for i in range(0,iterCN):
+        #E-step
+            sigma_yx=mnb.predict_proba(xtrain)
+            diff_sig=sigma_yx-old_sigma_yx
+            diff=LA.norm(diff_sig)
+            if _VERBOSE:
+                if i%10 ==0:
+                    print "    %d th non-stochastic iteration"%i
+                    print "    difference of cpt parameters: %f"%diff
+                    log_prob=calcObj(mnb,xtrain)
+                    print "    log_prob: %f"%log_prob
 
-          old_sigma_yx=sigma_yx
-    #S-step
-          q_y=np.sum(sigma_yx,axis=0)/numrows 
-          mnb.class_log_prior_=np.log(q_y)
-        #alpha is very import to smooth. or else in log when the proba is too small we got -inf
-          #ncx = safe_sparse_dot(sigma_yx.T, xtrain)+mnb.alpha
-          ncx = safe_sparse_dot(sigma_yx.T, xtrain)+mnb.alpha
-          ncxsum=np.sum(ncx,axis=1)
-          qxy=np.divide(ncx.T,ncxsum).T
-          mnb.feature_log_prob_=np.log(qxy)
-    return mnb
+            old_sigma_yx=sigma_yx
+        #S-step
+            q_y=np.sum(sigma_yx,axis=0)/numrows 
+            mnb.class_log_prior_=np.log(q_y)
+            #alpha is very import to smooth. or else in log when the proba is too small we got -inf
+            #ncx = safe_sparse_dot(sigma_yx.T, xtrain)+mnb.alpha
+            ncx = safe_sparse_dot(sigma_yx.T, xtrain)+mnb.alpha
+            ncxsum=np.sum(ncx,axis=1)
+            qxy=np.divide(ncx.T,ncxsum).T
+            mnb.feature_log_prob_=np.log(qxy)
 
-def ECMNB(mnb,xtrain,ytrain):
-    return None
-        #ccount=np.array(np.bincount(ytrain),float)
-        #ccount=ccount/numrows
-        #t_m=np.multiply(ccount,ytrain)
-        #score = mnb.score(xtrain,ydata)
+        final_log_prob = calcObj(mnb,xtrain)
+        score,tmpperm=validate1(mnb,xtrain,ydata,numc)
+        if _VERBOSE:
+            print "Classification accuracy of MNB = ", score
+            print "Final Log Prob of MNB = ",final_log_prob
+        if j==0:
+            best_accu=score
+            best_perm=tmpperm
+            bestMNB = mnb
+            bestlog_prob = final_log_prob
+            best_iter = 0
+        else:
+            if _MAXLOG:
+                if final_log_prob > bestlog_prob:
+                    if _VERBOSE:
+                        print "Get better"
+                        print "current best log prob vs this time: %f v.s. %f" %(bestlog_prob,final_log_prob)
+                        print "current best score vs this time: %f v.s %f" %(best_accu,score)
+                    _noconflict = True
+                    if score < best_accu:
+                        if _VERBOSE:
+                            print "Oh a conflict with score"
+                        _noconflict = False
+                    #if _noconflict or _MAXLOG: 
+                    bestMNB = mnb
+                    bestlog_prob = final_log_prob
+                    best_accu = score
+                    best_perm=tmpperm
+                    best_iter = j
+            else:
+                if score > best_accu:
+                    if _VERBOSE:
+                        print "Get better"
+                        print "current best log prob vs this time: %f v.s. %f" %(bestlog_prob,final_log_prob)
+                        print "current best score vs this time: %f v.s %f" %(best_accu,score)
+                    bestMNB = mnb
+                    bestlog_prob = final_log_prob
+                    best_accu = score
+                    best_perm=tmpperm
+                    best_iter = j
+                    
+
+    print "Best one is at %dth iteration"%best_iter
+    print "The corresponding score: ", best_accu
+    print "The corresponding log_prob: ", bestlog_prob
+
+def ECMNB(xtrain,ytrain,iterCN):
+#E-step
+    for i in range(0,ITERSN):
+        mnb=buildNB(xtrain,ytrain)
+        #print i
+        for j in range(0,numrows):
+            yproba_j=mnb.predict_proba(xtrain[j])
+            rclass_j=np.random.multinomial(1,yproba_j[0],size=1)
+            ytrain[j]=np.nonzero(rclass_j[0])[0][0]
+            #if i==0 and ytrain[j]==4:
+                #print "ytrain[%d]: %d"%(j,ytrain[j])
+                #print yproba_j
+    for i in range(0,ITERCN):
+        #if i == 0:
+            #print ytrain
+        print i
+        oldytrain=ytrain
+        mnb=buildNB(xtrain,ytrain)
+        ytrain=mnb.predict(xtrain)
+        diffytrain=ytrain-oldytrain
+        diff=LA.norm(diffytrain)
+        print diff
+        if diff < 5:
+            break
+
+    #ccount=np.array(np.bincount(ytrain),float)
+    #ccount=ccount/numrows
+    #t_m=np.multiply(ccount,ytrain)
+    print "Classification accuracy of MNB = ", mnb.score(xtrain,ydata)
+    #not sure for the use
+    #ccount=np.array(np.bincount(ytrain),float)
+    #ccount=ccount/numrows
+    #t_m=np.multiply(ccount,ytrain)
+    #score = mnb.score(xtrain,ydata)
 
 
 
@@ -227,49 +391,9 @@ def main_v1(argv):
     print "stochastic iteration time is set at: " ,ITERSN
     
     numc=4
-    for j in range(0,ITERSN):
-    #Initializing step of target
-        ydataf= -1*np.ones_like(ydata);
-        for k in range(0,numrows):
-            #randint is inclusive in both end
-            ydataf[k]=random.randint(0,numc-1)
-        ytrain=ydataf
 
-        mnb=EMNB(xtrain,ytrain,numc,numrows,ITERCN)
+    mnb=EMNB_csv(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
 
-        final_log_prob = calcObj(mnb,xtrain)
-        score,tmpperm=validate1(mnb,xtrain,ydata,numc)
-        if _VERBOSE:
-            print "Classification accuracy of MNB = ", score
-            print "Final Log Prob of MNB = ",final_log_prob
-        if j==0:
-            best_accu=score
-            best_perm=tmpperm
-            bestMNB = mnb
-            bestlog_prob = final_log_prob
-            best_iter = 0
-        else:
-            if final_log_prob > bestlog_prob:
-                if _VERBOSE:
-                    print "Get better"
-                    print "current best log prob vs this time: %f v.s. %f" %(bestlog_prob,final_log_prob)
-                    print "current best score vs this time: %f v.s %f" %(best_accu,score)
-                _noconflict = True
-                if score < best_accu:
-                    if _VERBOSE:
-                        print "Oh a conflict with score"
-                    _noconflict = False
-                if _VERBOSE:
-                    print ""
-                if _noconflict or _MAXLOG: 
-                    bestMNB = mnb
-                    bestlog_prob = final_log_prob
-                    best_accu = score
-                    best_perm=tmpperm
-                    best_iter = j
-    print "Best one is at %dth iteration"%best_iter
-    print "The corresponding score: ", best_accu
-    print "The corresponding log_prob: ", bestlog_prob
 
 def main_v0():
     random.seed()

@@ -15,10 +15,14 @@ import getopt
 import itertools
 
 DATAPATH="/home/wei/data_processing/data/car/car.data"
+ITERCN = 20
+ITERSN = 10
+_VERBOSE = False
+_MAXLOG  = False
 def usage():
     print "%s [-n nonstochastic_iteration_times] [-s stochastic_iteration_times] [-v] [-l]"
     print "     [-n iteration_times]: set nonstochastic iteration times for EM method. Default is 20"
-    print "     [-s stochastic_iteration_times]: set stochastic iteration times for EM method. Default is 10"
+    print "     [-s stochastic_iteration_times]: set stochastic iteration times for EM method. Default is 1"
     print "     [-v]: set verbose mode. Print other detail infomation"
     print "     [-l]: set objective of maximization of log likelihood; by default maximiation of score. Need to analysize further"
 
@@ -150,6 +154,45 @@ def validate1(mnb,xtrain,ydata,numc):
 
     return maxscore,bestperm
 
+def EMNB(xtrain,ytrain,numc,numrows,iterCN):
+#initial
+    mnb=buildNB(xtrain,ytrain)
+    if _VERBOSE:
+        print "number of class:", numc
+    old_sigma_yx=np.array(np.zeros((numrows,numc)),float)
+    for i in range(0,iterCN):
+    #E-step
+          sigma_yx=mnb.predict_proba(xtrain)
+          diff_sig=sigma_yx-old_sigma_yx
+          diff=LA.norm(diff_sig)
+          if _VERBOSE:
+              if i%10 ==0:
+                  print "diff"
+                  print "%d th iteration:%f"%(i,diff)
+                  log_prob=calcObj(mnb,xtrain)
+                  print "log_prob"
+                  print "%d th iteration:%f"%(i,log_prob)
+
+          old_sigma_yx=sigma_yx
+    #S-step
+          q_y=np.sum(sigma_yx,axis=0)/numrows 
+          mnb.class_log_prior_=np.log(q_y)
+        #alpha is very import to smooth. or else in log when the proba is too small we got -inf
+          #ncx = safe_sparse_dot(sigma_yx.T, xtrain)+mnb.alpha
+          ncx = safe_sparse_dot(sigma_yx.T, xtrain)+mnb.alpha
+          ncxsum=np.sum(ncx,axis=1)
+          qxy=np.divide(ncx.T,ncxsum).T
+          mnb.feature_log_prob_=np.log(qxy)
+    return mnb
+
+def ECMNB(mnb,xtrain,ytrain):
+    return None
+        #ccount=np.array(np.bincount(ytrain),float)
+        #ccount=ccount/numrows
+        #t_m=np.multiply(ccount,ytrain)
+        #score = mnb.score(xtrain,ydata)
+
+
 
 def main_v1(argv):
     try:
@@ -157,22 +200,22 @@ def main_v1(argv):
     except getopt.GetoptError:
         usage()
         sys.exit(2)
-    iterCN = 20
-    iterSN = 10
-    _verbose = False
-    _maxlog  = False
+    global ITERCN
+    global ITERSN
+    global _VERBOSE
+    global _MAXLOG
     for opt,arg in opts:
         if opt in ("-h","--help"):           
             usage()
             sys.exit(0)
         elif opt in ("-n"):
-            iterCN = int(arg)
+            ITERCN = int(arg)
         elif opt in ("-s"):
-            iterSN = int(arg)
+            ITERSN = int(arg)
         elif opt in ("-v"):
-            _verbose = True
+            _VERBOSE = True
         elif opt in ("-l"):
-            _maxlog= True
+            _MAXLOG= True
 
     random.seed()
     numrows,xdata_ml,ydata=initData(DATAPATH)
@@ -180,11 +223,11 @@ def main_v1(argv):
     #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
     xtrain=xdata_ml
     #Right now it is the basic EM + NB model. Here we don't introduct stochastic operation
-    print "nonstochastic iteration time is set at: " ,iterCN
-    print "stochastic iteration time is set at: " ,iterSN
+    print "nonstochastic iteration time is set at: " ,ITERCN
+    print "stochastic iteration time is set at: " ,ITERSN
     
     numc=4
-    for j in range(0,iterSN):
+    for j in range(0,ITERSN):
     #Initializing step of target
         ydataf= -1*np.ones_like(ydata);
         for k in range(0,numrows):
@@ -192,45 +235,11 @@ def main_v1(argv):
             ydataf[k]=random.randint(0,numc-1)
         ytrain=ydataf
 
-    #initial
-        mnb=buildNB(xtrain,ytrain)
-        if _verbose:
-            print "number of class:", numc
-        old_sigma_yx=np.array(np.zeros((numrows,numc)),float)
+        mnb=EMNB(xtrain,ytrain,numc,numrows,ITERCN)
 
-        for i in range(0,iterCN):
-            #print i
-    #E-step
-            sigma_yx=mnb.predict_proba(xtrain)
-            diff_sig=sigma_yx-old_sigma_yx
-            diff=LA.norm(diff_sig)
-            if _verbose:
-                if i%10 ==0:
-                    print "diff"
-                    print "%d th iteration:%f"%(i,diff)
-                    log_prob=calcObj(mnb,xtrain)
-                    print "log_prob"
-                    print "%d th iteration:%f"%(i,log_prob)
-
-            old_sigma_yx=sigma_yx
-    #S-step
-            q_y=np.sum(sigma_yx,axis=0)/numrows 
-            mnb.class_log_prior_=np.log(q_y)
-        #alpha is very import to smooth. or else in log when the proba is too small we got -inf
-            #ncx = safe_sparse_dot(sigma_yx.T, xtrain)+mnb.alpha
-            ncx = safe_sparse_dot(sigma_yx.T, xtrain)+mnb.alpha
-            ncxsum=np.sum(ncx,axis=1)
-            qxy=np.divide(ncx.T,ncxsum).T
-            mnb.feature_log_prob_=np.log(qxy)
-
-
-        #ccount=np.array(np.bincount(ytrain),float)
-        #ccount=ccount/numrows
-        #t_m=np.multiply(ccount,ytrain)
-        #score = mnb.score(xtrain,ydata)
         final_log_prob = calcObj(mnb,xtrain)
         score,tmpperm=validate1(mnb,xtrain,ydata,numc)
-        if _verbose:
+        if _VERBOSE:
             print "Classification accuracy of MNB = ", score
             print "Final Log Prob of MNB = ",final_log_prob
         if j==0:
@@ -241,15 +250,18 @@ def main_v1(argv):
             best_iter = 0
         else:
             if final_log_prob > bestlog_prob:
-                print "Get better"
-                print "current best log prob vs this time: %f v.s. %f" %(bestlog_prob,final_log_prob)
-                print "current best score vs this time: %f v.s %f" %(best_accu,score)
+                if _VERBOSE:
+                    print "Get better"
+                    print "current best log prob vs this time: %f v.s. %f" %(bestlog_prob,final_log_prob)
+                    print "current best score vs this time: %f v.s %f" %(best_accu,score)
                 _noconflict = True
                 if score < best_accu:
-                    print "Oh a conflict with score"
+                    if _VERBOSE:
+                        print "Oh a conflict with score"
                     _noconflict = False
-                print ""
-                if _noconflict or _maxlog: 
+                if _VERBOSE:
+                    print ""
+                if _noconflict or _MAXLOG: 
                     bestMNB = mnb
                     bestlog_prob = final_log_prob
                     best_accu = score
@@ -271,11 +283,10 @@ def main_v0():
     #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
     xtrain=xdata_ml
     ytrain=ydataf
-    iterSN=10
-    #iterCN=5
-    iterCN=20
+    ITERSN=1
+    ITERCN=20
 #E-step
-    for i in range(0,iterSN):
+    for i in range(0,ITERSN):
         mnb=buildNB(xtrain,ytrain)
         #print i
         for j in range(0,numrows):
@@ -285,7 +296,7 @@ def main_v0():
             #if i==0 and ytrain[j]==4:
                 #print "ytrain[%d]: %d"%(j,ytrain[j])
                 #print yproba_j
-    for i in range(0,iterCN):
+    for i in range(0,ITERCN):
         #if i == 0:
             #print ytrain
         print i

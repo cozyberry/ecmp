@@ -9,8 +9,18 @@ import random
 import urllib
 import random
 from numpy import linalg as LA
+from sklearn.utils.extmath import safe_sparse_dot, logsumexp
+import os,sys
+import getopt
+import itertools
 
 DATAPATH="/home/wei/data_processing/data/car/car.data"
+def usage():
+    print "%s [-n nonstochquqstic_iteration_times] [-s stochquastic_iteration_times] [-v]"
+    print "     [-n iteration_times]: set nonstochquastic iteration times for EM method. Default is 20"
+    print "     [-s stochquastic_iteration_times]: set stochquastic iteration times for EM method. Default is 10"
+    print "     [-v]: set verbose mode. Print other detail infomation"
+
 
 def initData(filename):
 
@@ -90,6 +100,138 @@ def buildNB(xtrain,ytrain):
     mnb.fit(xtrain,ytrain);
     return mnb
 
+#def E_step(mnb,x):
+
+def calcObj(mnb,xtrain):
+    jll = mnb._joint_log_likelihood(xtrain)
+    # normalize by P(x) = P(f_1, ..., f_n)
+    log_prob_x = logsumexp(jll, axis=1)
+    log_prob = np.sum(log_prob_x,axis=0)
+    return log_prob
+    
+def validate(mnb,xtrain,ydata,numc):
+    ypredict0=mnb.predict(xtrain)
+    allperms=itertools.permutations(range(0,numc))
+    ypredict=np.zeros_like(ypredict0)
+    numy=np.size(ydata,0)
+    maxscore = 0.0
+    #bestperm= allperms[0]
+    for oneperm in allperms:
+        for i in range(0,numy):
+            ypredict[i]=oneperm[ypredict0[i]]
+        ydiff=ydata-ypredict
+        csame=numy-np.count_nonzero(ydiff)
+        tmpscore=float(csame)/numy
+        if tmpscore > maxscore:
+            maxscore = tmpscore
+            bestperm=oneperm
+
+    return maxscore,bestperm
+
+    
+
+
+def main_v1(argv):
+    try:
+        opts, args = getopt.getopt(argv,"hn:s:v",["help"])
+    except getopt.GetoptError:
+        usage()
+        sys.exit(2)
+    iterCN = 20
+    iterSN = 10
+    _verbose = False
+    for opt,arg in opts:
+        if opt in ("-h","--help"):           
+            usage()
+            sys.exit(0)
+        elif opt in ("-n"):
+            iterCN = int(arg)
+        elif opt in ("-s"):
+            iterSN = int(arg)
+        elif opt in ("-v"):
+            _verbose = True
+
+    random.seed()
+    numrows,xdata_ml,ydata=initData(DATAPATH)
+    #No need for spliting training data and testing data
+    #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
+    xtrain=xdata_ml
+    #Right now it is the basic EM + NB model. Here we don't introduct stochastic operation
+    print "iteration time is set at: " ,iterCN
+    
+    numc=4
+    for j in range(0,iterSN):
+    #Initializing step of target
+        ydataf= -1*np.ones_like(ydata);
+        for i in range(0,numrows):
+            #randint is inclusive in both end
+            ydataf[i]=random.randint(0,numc-1)
+        ytrain=ydataf
+
+    #initial
+        mnb=buildNB(xtrain,ytrain)
+        if _verbose:
+            print "number of class:", numc
+        old_sigma_yx=np.array(np.zeros((numrows,numc)),float)
+
+        for i in range(0,iterCN):
+            #print i
+    #E-step
+            sigma_yx=mnb.predict_proba(xtrain)
+            diff_sig=sigma_yx-old_sigma_yx
+            diff=LA.norm(diff_sig)
+            if _verbose:
+                if i%10 ==0:
+                    print "diff"
+                    print "%d th iteration:%f"%(i,diff)
+                    log_prob=calcObj(mnb,xtrain)
+                    print "log_prob"
+                    print "%d th iteration:%f"%(i,log_prob)
+
+            old_sigma_yx=sigma_yx
+    #S-step
+            q_y=np.sum(sigma_yx,axis=0)/numrows 
+            mnb.class_log_prior_=np.log(q_y)
+        #alpha is very import to smooth. or else in log when the proba is too small we got -inf
+            #ncx = safe_sparse_dot(sigma_yx.T, xtrain)+mnb.alpha
+            ncx = safe_sparse_dot(sigma_yx.T, xtrain)+mnb.alpha
+            ncxsum=np.sum(ncx,axis=1)
+            qxy=np.divide(ncx.T,ncxsum).T
+            mnb.feature_log_prob_=np.log(qxy)
+
+
+        #ccount=np.array(np.bincount(ytrain),float)
+        #ccount=ccount/numrows
+        #t_m=np.multiply(ccount,ytrain)
+        #score = mnb.score(xtrain,ydata)
+        final_log_prob = calcObj(mnb,xtrain)
+        score,tmpperm=validate(mnb,xtrain,ydata,numc)
+        if _verbose:
+            print "Classification accuracy of MNB = ", score
+            print "Final Log Prob of MNB = ",final_log_prob
+        if j==0:
+            best_accu=score
+            best_perm=tmpperm
+            bestMNB = mnb
+            bestlog_prob = final_log_prob
+            best_iter = 0
+        else:
+            if final_log_prob > bestlog_prob:
+                print "Get better"
+                print "current best log prob vs this time: %f v.s. %f" %(bestlog_prob,final_log_prob)
+                print "current best score vs this time: %f v.s %f" %(best_accu,score)
+                bestMNB = mnb
+                bestlog_prob = final_log_prob
+                if score < best_accu:
+                    print "Oh a conflict with score"
+                print ""
+                best_accu = score
+                best_perm=tmpperm
+                best_iter = j
+    print "Best one is at %dth iteration"%best_iter
+    print "The corresponding score: ", best_accu
+    print "The corresponding log_prob: ", bestlog_prob
+
 def main_v0():
     random.seed()
     numrows,xdata_ml,ydata=initData(DATAPATH)
@@ -157,4 +299,7 @@ def testmnb(mnb,xtest,ytest):
     print mnb.predict(xtest[1])
 
 if __name__=='__main__':
-    main_v0()
+    if len(sys.argv) > 1:
+        main_v1(sys.argv[1:])
+    else:
+        main_v1("")

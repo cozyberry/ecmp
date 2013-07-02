@@ -16,9 +16,9 @@ import itertools
 
 DATAPATH="/home/wei/data_processing/data/car/car.data"
 def usage():
-    print "%s [-n nonstochquqstic_iteration_times] [-s stochquastic_iteration_times] [-v] [-l]"
-    print "     [-n iteration_times]: set nonstochquastic iteration times for EM method. Default is 20"
-    print "     [-s stochquastic_iteration_times]: set stochquastic iteration times for EM method. Default is 10"
+    print "%s [-n nonstochastic_iteration_times] [-s stochastic_iteration_times] [-v] [-l]"
+    print "     [-n iteration_times]: set nonstochastic iteration times for EM method. Default is 20"
+    print "     [-s stochastic_iteration_times]: set stochastic iteration times for EM method. Default is 10"
     print "     [-v]: set verbose mode. Print other detail infomation"
     print "     [-l]: set objective of maximization of log likelihood; by default maximiation of score. Need to analysize further"
 
@@ -180,8 +180,8 @@ def main_v1(argv):
     #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
     xtrain=xdata_ml
     #Right now it is the basic EM + NB model. Here we don't introduct stochastic operation
-    print "nonstochquastic iteration time is set at: " ,iterCN
-    print "stochquastic iteration time is set at: " ,iterSN
+    print "nonstochastic iteration time is set at: " ,iterCN
+    print "stochastic iteration time is set at: " ,iterSN
     
     numc=4
     for j in range(0,iterSN):

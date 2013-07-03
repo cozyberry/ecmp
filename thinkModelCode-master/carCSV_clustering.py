@@ -189,7 +189,7 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
             if _VERBOSE:
                 if i%10 ==0 and i!=(iterCN-1):
                     log_prob=calcObj(mnb,xtrain)
-                    tmpscore=mnb.score(xtrain,ydata)
+                    tmpscore,tmpperm=validate1(mnb,xtrain,ydata,numc)
                     print "%d,%d,%d,%f,%f,%f,%f,%f,Still in CN Loop"%(numc,j+1,i+1,log_prob,diff,tmpscore,bestlog_prob,best_accu)
 
 

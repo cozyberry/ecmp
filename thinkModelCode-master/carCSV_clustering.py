@@ -13,18 +13,26 @@ from sklearn.utils.extmath import safe_sparse_dot, logsumexp
 import os,sys
 import getopt
 import itertools
+import string
+from time import localtime, strftime, time
 
 DATAPATH="/home/wei/data_processing/data/car/car.data"
 ITERCN = 20
 ITERSN = 1
 _VERBOSE = False
 _MAXLOG  = False
+_OUTPUT  = False
+_DATE    = False
+ATTRIBUTES = ['buyPrice','maintPrice','numDoors','numPersons','lugBoot','safety']
+OUTPUTDIR ='/home/wei/share/logs/'
 def usage():
-    print "%s [-n nonstochastic_iteration_times] [-s stochastic_iteration_times] [-v] [-l]"%sys.argv[0]
+    print "%s [-n nonstochastic_iteration_times] [-s stochastic_iteration_times] [-v] [-l] [-o] [-d]"%sys.argv[0]
     print "     [-n iteration_times]: set nonstochastic iteration times for EM method. Default is 20"
     print "     [-s stochastic_iteration_times]: set stochastic iteration times for EM method. Default is 1"
     print "     [-v]: set verbose mode. Print other detail infomation"
     print "     [-l]: set objective of maximization of log likelihood; by default maximiation of score. Need to analysize further"
+    print "     [-o]: output predicted class label and original label as well for further analysis"
+    print "     [-d]: output file name with time stamp, only valid together with -o option"
 
 
 def initData(filename):
@@ -45,7 +53,8 @@ def initData(filename):
      data[k,:] = np.array(row)
      k = k+1;
 
-    featnames = np.array(['buyPrice','maintPrice','numDoors','numPersons','lugBoot','safety'],str)
+    #To modify
+    featnames = np.array(ATTRIBUTES,str)
 
     keys = [[]]*np.size(data,1)
     numdata = -1*np.ones_like(data);
@@ -69,7 +78,7 @@ def initData(filename):
     #print "target set"
     #print np.unique(ydata)
     #ydata_ml = lbin.fit_transform(ydata)
-    return numrows,xdata_ml,ydata
+    return numrows,xdata_ml,ydata,xdata,data
 
 def partition1D(numrows,ydata):
     allIDX = np.arange(numrows);
@@ -189,12 +198,12 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
             if _VERBOSE:
                 if i%10 ==0 and i!=(iterCN-1):
                     log_prob=calcObj(mnb,xtrain)
-                    tmpscore,tmpperm=validate1(mnb,xtrain,ydata,numc)
+                    tmpscore,tmpperm=validate(mnb,xtrain,ydata,numc)
                     print "%d,%d,%d,%f,%f,%f,%f,%f,Still in CN Loop"%(numc,j+1,i+1,log_prob,diff,tmpscore,bestlog_prob,best_accu)
 
 
         final_log_prob = calcObj(mnb,xtrain)
-        score,tmpperm=validate1(mnb,xtrain,ydata,numc)
+        score,tmpperm=validate(mnb,xtrain,ydata,numc)
         if _MAXLOG:
             if final_log_prob > bestlog_prob:
                 _noconflict = True
@@ -202,9 +211,9 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
                     _noconflict = False
                 if _VERBOSE:
                     if _noconflict:
-                        print "%d,%d,%d,%f,%f,%f,%f,%f,Better LL and NO Conflict"%(numc,j+1,iterCN,final_log_proba,diff,score,bestlog_prob,best_accu)
+                        print "%d,%d,%d,%f,%f,%f,%f,%f,Better LL and NO Conflict"%(numc,j+1,iterCN,final_log_prob,diff,score,bestlog_prob,best_accu)
                     else:
-                        print "%d,%d,%d,%f,%f,%f,%f,%f,Better LL but Conflict"%(numc,j+1,iterCN,final_log_proba,diff,score,bestlog_prob,best_accu)
+                        print "%d,%d,%d,%f,%f,%f,%f,%f,Better LL but Conflict"%(numc,j+1,iterCN,final_log_prob,diff,score,bestlog_prob,best_accu)
                 bestMNB = mnb
                 bestlog_prob = final_log_prob
                 best_accu = score
@@ -224,6 +233,7 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
     print "Best one is at %dth iteration"%best_iter
     print "The corresponding score: ", best_accu
     print "The corresponding log_prob: ", bestlog_prob
+    return bestMNB,best_perm
 '''
 def EMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
     if _VERBOSE:
@@ -349,7 +359,7 @@ def ECMNB(xtrain,ytrain,iterCN):
 
 def main_v1(argv):
     try:
-        opts, args = getopt.getopt(argv,"hn:s:vl",["help"])
+        opts, args = getopt.getopt(argv,"hn:s:vlod",["help"])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -357,6 +367,8 @@ def main_v1(argv):
     global ITERSN
     global _VERBOSE
     global _MAXLOG
+    global _OUTPUT
+    global _DATE
     for opt,arg in opts:
         if opt in ("-h","--help"):           
             usage()
@@ -369,9 +381,13 @@ def main_v1(argv):
             _VERBOSE = True
         elif opt in ("-l"):
             _MAXLOG= True
+        elif opt in ("-o"):
+            _OUTPUT= True
+        elif opt in ("-d"):
+            _DATE= True
 
     random.seed()
-    numrows,xdata_ml,ydata=initData(DATAPATH)
+    numrows,xdata_ml,ydata,xdata,data=initData(DATAPATH)
     #No need for spliting training data and testing data
     #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
     xtrain=xdata_ml
@@ -381,7 +397,85 @@ def main_v1(argv):
     
     numc=4
 
-    mnb=EMNB_csv(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
+    mnb,perm=EMNB_csv(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
+    ypredict0=mnb.predict(xtrain)
+    ypredict=np.zeros_like(ypredict0)
+    numy=np.size(ydata,0)
+    for i in range(0,numy):
+        ypredict[i]=perm[ypredict0[i]]
+
+    recall=np.array(np.zeros(numc),float)
+    precision=np.array(np.zeros(numc),float)
+    tp=np.array(np.zeros(numc),int)
+    retrived=np.array(np.zeros(numc),int)
+    relevant=np.array(np.zeros(numc),int)
+    
+
+    for i in range(0,numc):
+        a=(ypredict==i)
+        b=(ydata==i)
+        tp[i]=np.sum(np.multiply(a,b))
+        retrived[i]=np.sum(a)
+        relevant[i]=np.sum(b)
+        if relevant[i] != 0:
+            recall[i]=np.float(tp[i])/relevant[i]
+        else:
+            recall[i] = 0.0
+        if retrived[i] != 0:
+            precision[i]=np.float(tp[i])/retrived[i]
+        else:
+            precision[i] = 0.0
+        print "class %d: true_positive %d,retrived %d,relevant %d,recall %f, precision %f"%(i,tp[i],retrived[i],relevant[i],recall[i],precision[i])
+
+    if _OUTPUT:
+        outputDate=strftime("%m%d%H%M%S",localtime())
+        prefix='carCluster'
+        if _MAXLOG:
+            prefix+='_l'
+        if _DATE:
+            outname="%s_s%d_n%d_%s.csv"%(prefix,ITERSN,ITERCN,outputDate)
+            outname_hu="%s_s%d_n%d_%s_hu.csv"%(prefix,ITERSN,ITERCN,outputDate)
+        else:
+            outname="%s_s%d_n%d.csv"%(prefix,ITERSN,ITERCN)
+            outname_hu="%s_s%d_n%d_hu.csv"%(prefix,ITERSN,ITERCN)
+
+        title = ""
+        for attr in ATTRIBUTES:
+            title +="%s,"%attr
+        #title = string.rstrip(title,',')
+        title_hu=title
+        title+='predicted_class,numerical_class,is_right'
+        title_hu+='class,predicted_class,numerical_class,is_right'
+
+        out=open(os.path.join(OUTPUTDIR,outname),'w')
+        out_hu=open(os.path.join(OUTPUTDIR,outname_hu),'w')
+        print >> out,title
+        print >> out_hu,title_hu
+        # To modify
+        for i in range(0,numrows):
+            onerow=""
+            onerow_hu=""
+            for item in xdata[i]:
+                onerow+="%d,"%item
+            for item in data[i]:
+                onerow_hu+="%s,"%item
+            onerow+="%d,%d,%s"%(ypredict[i],ydata[i],ypredict[i]==ydata[i])
+            onerow_hu+="%d,%d,%s"%(ypredict[i],ydata[i],ypredict[i]==ydata[i])
+            print >> out,onerow
+            print >> out_hu,onerow_hu 
+
+        out.close()
+
+        print >>out_hu,""
+        print >>out_hu,"statistique:"
+        print >>out_hu,"class,true_positive,retrived,relevant,recall,precision"
+        for i in range(0,numc):
+            print >>out_hu,"%d,%d,%d,%d,%f,%f"%(i,tp[i],retrived[i],relevant[i],recall[i],precision[i])
+        out_hu.close()
+
+
+    
+        
 
 
 def main_v0():

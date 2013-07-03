@@ -25,8 +25,11 @@ _OUTPUT  = False
 _DATE    = False
 ATTRIBUTES = ['buyPrice','maintPrice','numDoors','numPersons','lugBoot','safety']
 OUTPUTDIR ='/home/wei/share/logs/'
+LTYPE = 0
+
 def usage():
-    print "%s [-n nonstochastic_iteration_times] [-s stochastic_iteration_times] [-v] [-l] [-o] [-d]"%sys.argv[0]
+    print "%s [-c type_of_likelihood] [-n nonstochastic_iteration_times] [-s stochastic_iteration_times] [-v] [-l] [-o] [-d]"%sys.argv[0]
+    print "     [-c type_of_likelihood]: 0 for normal likelihood;1 for classification likelihood. 0 By default"
     print "     [-n iteration_times]: set nonstochastic iteration times for EM method. Default is 20"
     print "     [-s stochastic_iteration_times]: set stochastic iteration times for EM method. Default is 1"
     print "     [-v]: set verbose mode. Print other detail infomation"
@@ -138,7 +141,7 @@ def calcObj(mnb,xtrain,ltype=0,ytrain=None):
                 sys.exit(1)
             maxClass = ytrain[np.argmax(ytrain)]
             jll=mnb._joint_log_likelihood(xtrain) 
-            numc = np.size(jll,0)
+            numc = np.size(jll,1)
             #if maxClass >=numc:
                 #print "Oh I don't have info about this class"
                 #sys.exit(1)
@@ -404,7 +407,7 @@ def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
 
 def main_v1(argv):
     try:
-        opts, args = getopt.getopt(argv,"hn:s:vlod",["help"])
+        opts, args = getopt.getopt(argv,"hc:n:s:vlod",["help"])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -414,10 +417,15 @@ def main_v1(argv):
     global _MAXLOG
     global _OUTPUT
     global _DATE
+    global LTYPE
     for opt,arg in opts:
         if opt in ("-h","--help"):           
             usage()
             sys.exit(0)
+        elif opt in ("-c"):
+            LTYPE = int(arg)
+            if LTYPE != 0 and LTYPE !=1:
+                print "Oh I don't know this type of likelihood: %d"
         elif opt in ("-n"):
             ITERCN = int(arg)
         elif opt in ("-s"):
@@ -441,9 +449,10 @@ def main_v1(argv):
     print "stochastic iteration time is set at: " ,ITERSN
     
     numc=4
-
-    #mnb,perm=EMNB_csv(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
-    mnb,perm=ECMNB(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
+    if LTYPE == 0:
+        mnb,perm=EMNB_csv(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
+    elif LTYPE == 1:
+        mnb,perm=ECMNB(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
     ypredict0=mnb.predict(xtrain)
     ypredict=np.zeros_like(ypredict0)
     numy=np.size(ydata,0)
@@ -479,11 +488,11 @@ def main_v1(argv):
         if _MAXLOG:
             prefix+='_l'
         if _DATE:
-            outname="%s_s%d_n%d_%s.csv"%(prefix,ITERSN,ITERCN,outputDate)
-            outname_hu="%s_s%d_n%d_%s_hu.csv"%(prefix,ITERSN,ITERCN,outputDate)
+            outname="%s_%d_s%d_n%d_%s.csv"%(prefix,LTYPE,ITERSN,ITERCN,outputDate)
+            outname_hu="%s_s%d_n%d_%s_hu.csv"%(prefix,LTYPE,ITERSN,ITERCN,outputDate)
         else:
-            outname="%s_s%d_n%d.csv"%(prefix,ITERSN,ITERCN)
-            outname_hu="%s_s%d_n%d_hu.csv"%(prefix,ITERSN,ITERCN)
+            outname="%s_%d_s%d_n%d.csv"%(prefix,LTYPE,ITERSN,ITERCN)
+            outname_hu="%s_%d_s%d_n%d_hu.csv"%(prefix,LTYPE,ITERSN,ITERCN)
 
         title = ""
         for attr in ATTRIBUTES:

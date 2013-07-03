@@ -113,15 +113,48 @@ def buildNB(xtrain,ytrain):
     mnb = naive_bayes.MultinomialNB();
     mnb.fit(xtrain,ytrain);
     return mnb
-
-#def E_step(mnb,x):
-
-def calcObj(mnb,xtrain):
-    jll = mnb._joint_log_likelihood(xtrain)
-    # normalize by P(x) = P(f_1, ..., f_n)
-    log_prob_x = logsumexp(jll, axis=1)
-    log_prob = np.sum(log_prob_x,axis=0)
-    return log_prob
+'''
+def E_step(mnb,x):
+ltype stands for the type of likelihood:
+    0 is normal likelihood
+    1 is classification likelihood
+'''
+def calcObj(mnb,xtrain,ltype=0,ytrain=None):
+    if ltype == 0:
+        jll = mnb._joint_log_likelihood(xtrain)
+        # normalize by P(x) = P(f_1, ..., f_n)
+        log_prob_x = logsumexp(jll, axis=1)
+        log_prob = np.sum(log_prob_x,axis=0)
+        return log_prob
+    elif ltype == 1:
+        if ytrain == None :
+            print "For the classification likelihood, please provide class label infomation!"
+            sys.exit(1)
+        else:
+            numy=np.size(ytrain,0)
+            numrows=np.size(xtrain,0)
+            if numy != numrows:
+                print "OH the number of attributes sample and the class label sets are inconsistent!"
+                sys.exit(1)
+            maxClass = ytrain[np.argmax(ytrain)]
+            jll=mnb._joint_log_likelihood(xtrain) 
+            numc = np.size(jll,0)
+            #if maxClass >=numc:
+                #print "Oh I don't have info about this class"
+                #sys.exit(1)
+            log_prob = 0.0
+            print "numc: %d"%numc
+            print "size of jll: %d * %d"%(np.size(jll,0),np.size(jll,1))
+            for i in range(0,numy):
+                #print "%d,%d"%(i,ytrain[i])
+                if ytrain[i] < numc:
+                    log_prob+=jll[i,ytrain[i]]
+                else:
+                    log_prob+=0.0
+            return log_prob
+    else:
+        print "Oh I don't know how to calculate this type of likelihood ", ltype
+        sys.exit(1)
     
 def validate(mnb,xtrain,ydata,numc):
     ypredict0=mnb.predict(xtrain)
@@ -186,7 +219,7 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
             diff_sig=sigma_yx-old_sigma_yx
             diff=LA.norm(diff_sig)
             old_sigma_yx=sigma_yx
-        #S-step
+        #M-step
             q_y=np.sum(sigma_yx,axis=0)/numrows 
             mnb.class_log_prior_=np.log(q_y)
             #alpha is very import to smooth. or else in log when the proba is too small we got -inf
@@ -234,7 +267,7 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
     print "The corresponding score: ", best_accu
     print "The corresponding log_prob: ", bestlog_prob
     return bestMNB,best_perm
-'''
+"""
 def EMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
     if _VERBOSE:
         print "number of class:", numc
@@ -318,43 +351,55 @@ def EMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
     print "Best one is at %dth iteration"%best_iter
     print "The corresponding score: ", best_accu
     print "The corresponding log_prob: ", bestlog_prob
-
-'''
-def ECMNB(xtrain,ytrain,iterCN):
-#E-step
-    for i in range(0,ITERSN):
-        mnb=buildNB(xtrain,ytrain)
-        #print i
-        for j in range(0,numrows):
-            yproba_j=mnb.predict_proba(xtrain[j])
-            rclass_j=np.random.multinomial(1,yproba_j[0],size=1)
-            ytrain[j]=np.nonzero(rclass_j[0])[0][0]
-            #if i==0 and ytrain[j]==4:
-                #print "ytrain[%d]: %d"%(j,ytrain[j])
-                #print yproba_j
-    for i in range(0,ITERCN):
-        #if i == 0:
-            #print ytrain
-        print i
+"""
+def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
+    if _VERBOSE:
+            print "NO_Class,NO_ITER,is_S-step,CLL,ACCURACY"
+    ydataf= -1*np.ones_like(ydata);
+    for k in range(0,numrows):
+        #randint is inclusive in both end
+        ydataf[k]=random.randint(0,numc-1)
+    ytrain=ydataf
+#Initial step
+    mnb=buildNB(xtrain,ytrain)
+    iterTotal=iterSN+iterCN
+#E-step and C-step or S-step
+    for i in range(0,iterTotal):
         oldytrain=ytrain
+        if i < iterSN:
+            for j in range(0,numrows):
+            #E-step
+                yproba_j=mnb.predict_proba(xtrain[j])
+            #S-step
+                rclass_j=np.random.multinomial(1,yproba_j[0],size=1)
+                ytrain[j]=np.nonzero(rclass_j[0])[0][0]
+                #if i==0 and ytrain[j]==4:
+                    #print "ytrain[%d]: %d"%(j,ytrain[j])
+                    #print yproba_j
+        else:
+        #E-step and C-step
+            ytrain = mnb.predict(xtrain)
+    #M-step
         mnb=buildNB(xtrain,ytrain)
-        ytrain=mnb.predict(xtrain)
-        diffytrain=ytrain-oldytrain
-        diff=LA.norm(diffytrain)
-        print diff
-        if diff < 5:
-            break
+        #diffytrain=ytrain-oldytrain
+        #diff=LA.norm(diffytrain)
+        #print diff
+        #if diff < 5:
+        #    break
 
-    #ccount=np.array(np.bincount(ytrain),float)
-    #ccount=ccount/numrows
-    #t_m=np.multiply(ccount,ytrain)
-    print "Classification accuracy of MNB = ", mnb.score(xtrain,ydata)
-    #not sure for the use
-    #ccount=np.array(np.bincount(ytrain),float)
-    #ccount=ccount/numrows
-    #t_m=np.multiply(ccount,ytrain)
-    #score = mnb.score(xtrain,ydata)
+        if _VERBOSE:
+            if i%10 ==0:
+                log_prob=calcObj(mnb,xtrain,1,ytrain)
+                tmpscore,tmpperm=validate(mnb,xtrain,ydata,numc)
+                print "%d,%d,%s,%f,%f"%(numc,i,i<iterSN,log_prob,tmpscore)
 
+    score,perm=validate(mnb,xtrain,ydata,numc)
+    log_prob=calcObj(mnb,xtrain,1,ytrain)
+    #print "Best one is at %dth iteration"%best_iter
+    print "The corresponding score: ",score 
+    print "The corresponding log_prob: ", log_prob
+    return mnb,perm
+ 
 
 
 def main_v1(argv):
@@ -397,7 +442,8 @@ def main_v1(argv):
     
     numc=4
 
-    mnb,perm=EMNB_csv(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
+    #mnb,perm=EMNB_csv(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
+    mnb,perm=ECMNB(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
     ypredict0=mnb.predict(xtrain)
     ypredict=np.zeros_like(ypredict0)
     numy=np.size(ydata,0)

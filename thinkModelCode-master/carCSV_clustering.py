@@ -16,11 +16,11 @@ import itertools
 
 DATAPATH="/home/wei/data_processing/data/car/car.data"
 ITERCN = 20
-ITERSN = 10
+ITERSN = 1
 _VERBOSE = False
 _MAXLOG  = False
 def usage():
-    print "%s [-n nonstochastic_iteration_times] [-s stochastic_iteration_times] [-v] [-l]"
+    print "%s [-n nonstochastic_iteration_times] [-s stochastic_iteration_times] [-v] [-l]"%sys.argv[0]
     print "     [-n iteration_times]: set nonstochastic iteration times for EM method. Default is 20"
     print "     [-s stochastic_iteration_times]: set stochastic iteration times for EM method. Default is 1"
     print "     [-v]: set verbose mode. Print other detail infomation"
@@ -156,11 +156,10 @@ def validate1(mnb,xtrain,ydata,numc):
 
 def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
     if _VERBOSE:
-        if _MAXLOG:
-            print "NO_Class,NO_ITERSN,NO_ITERCN,LL,CUR_BEST_LL,DIFF_CPT,ACCURACY,comments"
-        else:
-            print "NO_Class,NO_ITERSN,NO_ITERCN,LL,DIFF_CPT,ACCURACY,CUR_BEST_ACCURACY,comments"
+            print "NO_Class,NO_ITERSN,NO_ITERCN,LL,DIFF_CPT,ACCURACY,YET_CUR_BEST_LL,YET_CUR_BEST_ACCURACY,Comments"
 
+    best_accu= 0.0
+    bestlog_prob = -float('inf') 
     for j in range(0,ITERSN):
     #Initializing step of target
         ydataf= -1*np.ones_like(ydata);
@@ -177,7 +176,6 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
             sigma_yx=mnb.predict_proba(xtrain)
             diff_sig=sigma_yx-old_sigma_yx
             diff=LA.norm(diff_sig)
-
             old_sigma_yx=sigma_yx
         #S-step
             q_y=np.sum(sigma_yx,axis=0)/numrows 
@@ -191,52 +189,42 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
             if _VERBOSE:
                 if i%10 ==0 and i!=(iterCN-1):
                     log_prob=calcObj(mnb,xtrain)
-                    tmpscore=mnb.score(mnb,xtrain)
-                    if _MAXLOG:
-                        print "%d,%d,%d,%f,,%f,%f"%(numc,j,i,log_proba,diff,tmpscore)
-                    else:
-                        print "%d,%d,%d,%f,%f,%f,"%(numc,j,i,log_proba,diff,tmpscore)
+                    tmpscore=mnb.score(xtrain,ydata)
+                    print "%d,%d,%d,%f,%f,%f,%f,%f,Still in CN Loop"%(numc,j+1,i+1,log_prob,diff,tmpscore,bestlog_prob,best_accu)
 
 
         final_log_prob = calcObj(mnb,xtrain)
         score,tmpperm=validate1(mnb,xtrain,ydata,numc)
-        if j==0:
-            best_accu=score
-            best_perm=tmpperm
-            bestMNB = mnb
-            bestlog_prob = final_log_prob
-            best_iter = 0
+        if _MAXLOG:
+            if final_log_prob > bestlog_prob:
+                _noconflict = True
+                if score < best_accu:
+                    _noconflict = False
+                if _VERBOSE:
+                    if _noconflict:
+                        print "%d,%d,%d,%f,%f,%f,%f,%f,Better LL and NO Conflict"%(numc,j+1,iterCN,final_log_proba,diff,score,bestlog_prob,best_accu)
+                    else:
+                        print "%d,%d,%d,%f,%f,%f,%f,%f,Better LL but Conflict"%(numc,j+1,iterCN,final_log_proba,diff,score,bestlog_prob,best_accu)
+                bestMNB = mnb
+                bestlog_prob = final_log_prob
+                best_accu = score
+                best_perm=tmpperm
+                best_iter = j
         else:
-            if _MAXLOG:
-                if final_log_prob > bestlog_prob:
-                    _noconflict = True
-                    if score < best_accu:
-                        _noconflict = False
-                    if _VERBOSE:
-                        if _noconflict:
-                            print "%d,%d,%d,%f,%f,%f,%f,Better and NO conflict"%(numc,j,iterCN-1,final_log_proba,bestlog_prob,diff,score)
-                        else:
-                            print "%d,%d,%d,%f,%f,%f,%f,Better but conflict"%(numc,j,iterCN-1,final_log_proba,bestlog_prob,diff,score)
-                    bestMNB = mnb
-                    bestlog_prob = final_log_prob
-                    best_accu = score
-                    best_perm=tmpperm
-                    best_iter = j
-            else:
-                if score > best_accu:
-                    if _VERBOSE:
-                            print "%d,%d,%d,%f,%f,%f,%f,Better"%(numc,j,iterCN-1,final_log_proba,diff,score,best_accu)
-                    bestMNB = mnb
-                    bestlog_prob = final_log_prob
-                    best_accu = score
-                    best_perm=tmpperm
-                    best_iter = j
+            if score > best_accu:
+                if _VERBOSE:
+                        print "%d,%d,%d,%f,%f,%f,%f,%f,Better Score"%(numc,j+1,iterCN,final_log_prob,diff,score,bestlog_prob,best_accu)
+                bestMNB = mnb
+                bestlog_prob = final_log_prob
+                best_accu = score
+                best_perm=tmpperm
+                best_iter = j
                     
 
     print "Best one is at %dth iteration"%best_iter
     print "The corresponding score: ", best_accu
     print "The corresponding log_prob: ", bestlog_prob
-
+'''
 def EMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
     if _VERBOSE:
         print "number of class:", numc
@@ -321,6 +309,7 @@ def EMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
     print "The corresponding score: ", best_accu
     print "The corresponding log_prob: ", bestlog_prob
 
+'''
 def ECMNB(xtrain,ytrain,iterCN):
 #E-step
     for i in range(0,ITERSN):

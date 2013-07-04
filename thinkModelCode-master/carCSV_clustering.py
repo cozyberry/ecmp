@@ -24,7 +24,8 @@ _MAXLOG  = False
 _OUTPUT  = False
 _DATE    = False
 ATTRIBUTES = ['buyPrice','maintPrice','numDoors','numPersons','lugBoot','safety']
-OUTPUTDIR ='/home/wei/share/logs/'
+OUTPUTDIR ='/home/wei/share/carClustering/outputs/'
+LOGDIR='/home/wei/share/carClustering/logs/'
 LTYPE = 0
 
 def usage():
@@ -201,8 +202,15 @@ def validate1(mnb,xtrain,ydata,numc):
 
 def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
     if _VERBOSE:
-            print "NO_Class,NO_ITERSN,NO_ITERCN,LL,DIFF_CPT,ACCURACY,YET_CUR_BEST_LL,YET_CUR_BEST_ACCURACY,Comments"
-
+        prefix="clusteringLOG"
+        if _DATE:
+            outputDate=strftime("%m%d%H%M%S",localtime())
+            logname="%s_%d_s%d_n%d_%s.csv"%(prefix,LTYPE,ITERSN,ITERCN,outputDate)
+        else:
+            logname="%s_%d_s%d_n%d.csv"%(prefix,LTYPE,ITERSN,ITERCN)
+        log=open(os.path.join(LOGDIR,logname),'w')    
+        print "NO_Class,NO_ITERSN,NO_ITERCN,LL,DIFF_CPT,ACCURACY,YET_CUR_BEST_LL,YET_CUR_BEST_ACCURACY,Comments"
+        print >>log,"NO_Class,NO_ITERSN,NO_ITERCN,LL,DIFF_CPT,ACCURACY,YET_CUR_BEST_LL,YET_CUR_BEST_ACCURACY,Comments"
     best_accu= 0.0
     bestlog_prob = -float('inf') 
     for j in range(0,ITERSN):
@@ -236,6 +244,7 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
                     log_prob=calcObj(mnb,xtrain)
                     tmpscore,tmpperm=validate(mnb,xtrain,ydata,numc)
                     print "%d,%d,%d,%f,%f,%f,%f,%f,Still in CN Loop"%(numc,j+1,i+1,log_prob,diff,tmpscore,bestlog_prob,best_accu)
+                    print >>log,"%d,%d,%d,%f,%f,%f,%f,%f,Still in CN Loop"%(numc,j+1,i+1,log_prob,diff,tmpscore,bestlog_prob,best_accu)
 
 
         final_log_prob = calcObj(mnb,xtrain)
@@ -248,8 +257,10 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
                 if _VERBOSE:
                     if _noconflict:
                         print "%d,%d,%d,%f,%f,%f,%f,%f,Better LL and NO Conflict"%(numc,j+1,iterCN,final_log_prob,diff,score,bestlog_prob,best_accu)
+                        print >>log,"%d,%d,%d,%f,%f,%f,%f,%f,Better LL and NO Conflict"%(numc,j+1,iterCN,final_log_prob,diff,score,bestlog_prob,best_accu)
                     else:
                         print "%d,%d,%d,%f,%f,%f,%f,%f,Better LL but Conflict"%(numc,j+1,iterCN,final_log_prob,diff,score,bestlog_prob,best_accu)
+                        print >>log,"%d,%d,%d,%f,%f,%f,%f,%f,Better LL but Conflict"%(numc,j+1,iterCN,final_log_prob,diff,score,bestlog_prob,best_accu)
                 bestMNB = mnb
                 bestlog_prob = final_log_prob
                 best_accu = score
@@ -259,6 +270,7 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
             if score > best_accu:
                 if _VERBOSE:
                         print "%d,%d,%d,%f,%f,%f,%f,%f,Better Score"%(numc,j+1,iterCN,final_log_prob,diff,score,bestlog_prob,best_accu)
+                        print >>log,"%d,%d,%d,%f,%f,%f,%f,%f,Better Score"%(numc,j+1,iterCN,final_log_prob,diff,score,bestlog_prob,best_accu)
                 bestMNB = mnb
                 bestlog_prob = final_log_prob
                 best_accu = score
@@ -269,6 +281,10 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
     print "Best one is at %dth iteration"%best_iter
     print "The corresponding score: ", best_accu
     print "The corresponding log_prob: ", bestlog_prob
+    print >>log,"Best one is at %dth iteration"%best_iter
+    print >>log,"The corresponding score: ", best_accu
+    print >>log,"The corresponding log_prob: ", bestlog_prob
+    log.close()
     return bestMNB,best_perm
 """
 def EMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
@@ -418,6 +434,8 @@ def main_v1(argv):
     global _OUTPUT
     global _DATE
     global LTYPE
+    global OUTPUTDIR 
+    global LOGDIR 
     for opt,arg in opts:
         if opt in ("-h","--help"):           
             usage()

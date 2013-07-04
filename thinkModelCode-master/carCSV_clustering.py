@@ -30,7 +30,7 @@ LTYPE = 0
 
 def usage():
     print "%s [-c type_of_likelihood] [-n nonstochastic_iteration_times] [-s stochastic_iteration_times] [-v] [-l] [-o] [-d]"%sys.argv[0]
-    print "     [-c type_of_likelihood]: 0 for normal likelihood;1 for classification likelihood. 0 By default"
+    print "     [-c type_of_likelihood]: 0 for normal likelihood;1 for classification likelihood;2 for naive bayesian network. 0 By default"
     print "     [-n iteration_times]: set nonstochastic iteration times for EM method. Default is 20"
     print "     [-s stochastic_iteration_times]: set stochastic iteration times for EM method. Default is 1"
     print "     [-v]: set verbose mode. Print other detail infomation"
@@ -86,6 +86,7 @@ def initData(filename):
 
 def partition1D(numrows,ydata):
     allIDX = np.arange(numrows);
+    random.shuffle(allIDX); # randomly shuffles allIDX order for creating 'holdout' sample
     holdout_number = numrows/10; # holdout 10% of full sample set to perform validation
     testIDX = allIDX[0:holdout_number];
     trainIDX = allIDX[holdout_number:];
@@ -93,12 +94,12 @@ def partition1D(numrows,ydata):
     ytrain = ydata[trainIDX];
     return ytrain,ytest
 
-def partition(numrows,xdata_ml,ydata):
+def partition(numrows,data,xdata_ml,ydata):
 
     # -------------------------- Data Partitioning and Cross-Validation --------------------------
     # As suggested by the UCI machine learning repository, do a 2/3 train, 1/3 test split
     allIDX = np.arange(numrows);
-    #random.shuffle(allIDX); # randomly shuffles allIDX order for creating 'holdout' sample
+    random.shuffle(allIDX); # randomly shuffles allIDX order for creating 'holdout' sample
     holdout_number = numrows/10; # holdout 10% of full sample set to perform validation
     testIDX = allIDX[0:holdout_number];
     trainIDX = allIDX[holdout_number:];
@@ -108,7 +109,8 @@ def partition(numrows,xdata_ml,ydata):
     xtrain = xdata_ml[trainIDX,:];
     ytest = ydata[testIDX];
     ytrain = ydata[trainIDX];
-    return xtrain,ytrain,xtest,ytest
+    testdata=data[testIDX,:]
+    return testdata,xtrain,ytrain,xtest,ytest
 
 def buildNB(xtrain,ytrain):
 
@@ -325,6 +327,12 @@ def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
         else:
         #E-step and C-step
             ytrain = mnb.predict(xtrain)
+        curnumc=np.size(np.unique(ytrain),0)
+        if curnumc == 1:
+            if _VERBOSE:
+                print "Only One class is predicted. STOP earlier at %dth iteration"%i
+                print >>log,"Only One class is predicted. STOP earlier at %dth iteration"%i
+            break
     #M-step
         mnb=buildNB(xtrain,ytrain)
         #diffytrain=ytrain-oldytrain
@@ -335,11 +343,11 @@ def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
 
         log_prob=calcObj(mnb,xtrain,1,ytrain)
         if _VERBOSE:
-            if i%1==0:
+            if i%10==0:
                 tmpscore,tmpperm=validate(mnb,xtrain,ydata,numc)
                 print "%d,%d,%s,%f,%f,%f"%(numc,i,i<iterSN,log_prob,log_prob-oldlog_prob,tmpscore)
                 print >>log,"%d,%d,%s,%f,%f,%f"%(numc,i,i<iterSN,log_prob,log_prob-oldlog_prob,tmpscore)
-        #print "%dth iteration gap of log_prob: %f"%(i,log_prob-old_logprob)
+        #print "%dth iteration gap of log_prob: %.15f"%(i,log_prob-oldlog_prob)
         if abs(log_prob - oldlog_prob) < stopGAP:
             if _VERBOSE:
                 print "%f" %(log_prob-oldlog_prob)
@@ -358,6 +366,16 @@ def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
     log.close()
     return mnb,perm
  
+def NB(data,xdata_ml,ydata,numrows):
+    testdata,xtrain,ytrain,xtest,ytest=partition(numrows,data,xdata_ml,ydata)
+    if _VERBOSE:
+        print "Size of xtrain: %d * %d"%(np.size(xtrain,0),np.size(xtrain,1))
+
+    mnb=buildNB(xtrain,ytrain)
+    print mnb.score(xtest,ytest)
+    numc=len(mnb.classes_)
+    ypredict=mnb.predict(xtest)
+    testResult(testdata,xtest,ypredict,ytest,numc,np.size(xtest,0))
 
 
 def main_v1(argv):
@@ -381,7 +399,7 @@ def main_v1(argv):
             sys.exit(0)
         elif opt in ("-c"):
             LTYPE = int(arg)
-            if LTYPE != 0 and LTYPE !=1:
+            if LTYPE != 0 and LTYPE !=1 and LTYPE!=2:
                 print "Oh I don't know this type of likelihood: %d"
         elif opt in ("-n"):
             ITERCN = int(arg)
@@ -402,20 +420,29 @@ def main_v1(argv):
     #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
     xtrain=xdata_ml
     #Right now it is the basic EM + NB model. Here we don't introduct stochastic operation
-    print "nonstochastic iteration time is set at: " ,ITERCN
-    print "stochastic iteration time is set at: " ,ITERSN
+    if LTYPE ==0 or LTYPE ==1:
+        print "nonstochastic iteration time is set at: " ,ITERCN
+        print "stochastic iteration time is set at: " ,ITERSN
     
-    numc=4
     if LTYPE == 0:
+        numc=4
         mnb,perm=EMNB_csv(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
     elif LTYPE == 1:
+        numc=4
         mnb,perm=ECMNB(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
-    ypredict0=mnb.predict(xtrain)
-    ypredict=np.zeros_like(ypredict0)
-    numy=np.size(ydata,0)
-    for i in range(0,numy):
-        ypredict[i]=perm[ypredict0[i]]
+    elif LTYPE == 2:
+        NB(data,xtrain,ydata,numrows)
 
+    if LTYPE ==0 or LTYPE ==1:
+        ypredict0=mnb.predict(xtrain)
+        ypredict=np.zeros_like(ypredict0)
+        numy=np.size(ydata,0)
+        for i in range(0,numy):
+            ypredict[i]=perm[ypredict0[i]]
+        testResult(data,xtrain,ypredict,ydata,numc,numrows)
+    
+
+def testResult(data,xdata,ypredict,ydata,numc,numrows):
     recall=np.array(np.zeros(numc),float)
     precision=np.array(np.zeros(numc),float)
     tp=np.array(np.zeros(numc),int)
@@ -438,6 +465,9 @@ def main_v1(argv):
         else:
             precision[i] = 0.0
         print "class %d: true_positive %d,retrived %d,relevant %d,recall %f, precision %f"%(i,tp[i],retrived[i],relevant[i],recall[i],precision[i])
+
+    print "overall precision & recall: %f"%(np.float(np.sum(tp))/np.sum(retrived))
+    #print "overall recall: %f"%(np.float(np.sum(tp))/np.sum(relevant))
 
     if _OUTPUT:
         outputDate=strftime("%m%d%H%M%S",localtime())
@@ -483,77 +513,9 @@ def main_v1(argv):
         print >>out_hu,"class,true_positive,retrived,relevant,recall,precision"
         for i in range(0,numc):
             print >>out_hu,"%d,%d,%d,%d,%f,%f"%(i,tp[i],retrived[i],relevant[i],recall[i],precision[i])
+
+        print >>out_hu,"overall precision & recall, %f"%(np.float(np.sum(tp))/np.sum(retrived))
         out_hu.close()
-
-
-    
-        
-
-
-def main_v0():
-    random.seed()
-    numrows,xdata_ml,ydata=initData(DATAPATH)
-#Initializing step of target
-    ydataf= -1*np.ones_like(ydata);
-    numc=3
-    for i in range(0,numrows):
-        ydataf[i]=random.randint(0,numc)
-    #No need for spliting training data and testing data
-    #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
-    xtrain=xdata_ml
-    ytrain=ydataf
-    ITERSN=1
-    ITERCN=20
-#E-step
-    for i in range(0,ITERSN):
-        mnb=buildNB(xtrain,ytrain)
-        #print i
-        for j in range(0,numrows):
-            yproba_j=mnb.predict_proba(xtrain[j])
-            rclass_j=np.random.multinomial(1,yproba_j[0],size=1)
-            ytrain[j]=np.nonzero(rclass_j[0])[0][0]
-            #if i==0 and ytrain[j]==4:
-                #print "ytrain[%d]: %d"%(j,ytrain[j])
-                #print yproba_j
-    for i in range(0,ITERCN):
-        #if i == 0:
-            #print ytrain
-        print i
-        oldytrain=ytrain
-        mnb=buildNB(xtrain,ytrain)
-        ytrain=mnb.predict(xtrain)
-        diffytrain=ytrain-oldytrain
-        diff=LA.norm(diffytrain)
-        print diff
-        if diff < 5:
-            break
-
-    #ccount=np.array(np.bincount(ytrain),float)
-    #ccount=ccount/numrows
-    #t_m=np.multiply(ccount,ytrain)
-    print "Classification accuracy of MNB = ", mnb.score(xtrain,ydata)
-
-def testmnb(mnb,xtest,ytest):
-
-    print "One case:"
-    print "    Attributes:"
-    print xtest[0]
-    print "    The predicted Proba:"
-    pvals=mnb.predict_proba(xtest[0])
-    print pvals
-    rclass=np.random.multinomial(1,pvals,size=1)
-    print "random generated class:"
-    print rclass
-    print "    The predicted Class:"
-    print mnb.predict(xtest[0])
-
-    print "One case:"
-    print "    Attributes:"
-    print xtest[1]
-    print "    The predicted Proba:"
-    print mnb.predict_proba(xtest[1])
-    print "    The predicted Class:"
-    print mnb.predict(xtest[1])
 
 if __name__=='__main__':
     if len(sys.argv) > 1:

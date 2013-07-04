@@ -117,12 +117,12 @@ def buildNB(xtrain,ytrain):
     mnb = naive_bayes.MultinomialNB();
     mnb.fit(xtrain,ytrain);
     return mnb
-'''
-def E_step(mnb,x):
+
+"""
 ltype stands for the type of likelihood:
     0 is normal likelihood
     1 is classification likelihood
-'''
+"""
 def calcObj(mnb,xtrain,ltype=0,ytrain=None):
     if ltype == 0:
         jll = mnb._joint_log_likelihood(xtrain)
@@ -147,8 +147,8 @@ def calcObj(mnb,xtrain,ltype=0,ytrain=None):
                 #print "Oh I don't have info about this class"
                 #sys.exit(1)
             log_prob = 0.0
-            print "numc: %d"%numc
-            print "size of jll: %d * %d"%(np.size(jll,0),np.size(jll,1))
+            #print "numc: %d"%numc
+            #print "size of jll: %d * %d"%(np.size(jll,0),np.size(jll,1))
             for i in range(0,numy):
                 #print "%d,%d"%(i,ytrain[i])
                 if ytrain[i] < numc:
@@ -205,9 +205,9 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
         prefix="clusteringLOG"
         if _DATE:
             outputDate=strftime("%m%d%H%M%S",localtime())
-            logname="%s_%d_s%d_n%d_%s.csv"%(prefix,LTYPE,ITERSN,ITERCN,outputDate)
+            logname="%s_%d_s%d_n%d_%s.csv"%(prefix,LTYPE,iterSN,iterCN,outputDate)
         else:
-            logname="%s_%d_s%d_n%d.csv"%(prefix,LTYPE,ITERSN,ITERCN)
+            logname="%s_%d_s%d_n%d.csv"%(prefix,LTYPE,iterSN,iterCN)
         log=open(os.path.join(LOGDIR,logname),'w')    
         print "NO_Class,NO_ITERSN,NO_ITERCN,LL,DIFF_CPT,ACCURACY,YET_CUR_BEST_LL,YET_CUR_BEST_ACCURACY,Comments"
         print >>log,"NO_Class,NO_ITERSN,NO_ITERCN,LL,DIFF_CPT,ACCURACY,YET_CUR_BEST_LL,YET_CUR_BEST_ACCURACY,Comments"
@@ -286,9 +286,19 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
     print >>log,"The corresponding log_prob: ", bestlog_prob
     log.close()
     return bestMNB,best_perm
+
 def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
     if _VERBOSE:
-            print "NO_Class,NO_ITER,is_S-step,CLL,ACCURACY"
+        prefix="clusteringLOG"
+        if _DATE:
+            outputDate=strftime("%m%d%H%M%S",localtime())
+            logname="%s_%d_s%d_n%d_%s.csv"%(prefix,LTYPE,iterSN,iterCN,outputDate)
+        else:
+            logname="%s_%d_s%d_n%d.csv"%(prefix,LTYPE,iterSN,iterCN)
+        log=open(os.path.join(LOGDIR,logname),'w')    
+        print "NO_Class,NO_ITER,is_S-step,CLL,DIFF_CLL,ACCURACY"
+        print >>log,"NO_Class,NO_ITER,is_S-step,CLL,DIFF_CLL,ACCURACY"
+
     ydataf= -1*np.ones_like(ydata);
     for k in range(0,numrows):
         #randint is inclusive in both end
@@ -297,6 +307,8 @@ def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
 #Initial step
     mnb=buildNB(xtrain,ytrain)
     iterTotal=iterSN+iterCN
+    oldlog_prob=-float('inf')
+    stopGAP = np.exp(-10)
 #E-step and C-step or S-step
     for i in range(0,iterTotal):
         oldytrain=ytrain
@@ -321,17 +333,29 @@ def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
         #if diff < 5:
         #    break
 
+        log_prob=calcObj(mnb,xtrain,1,ytrain)
         if _VERBOSE:
-            if i%10 ==0:
-                log_prob=calcObj(mnb,xtrain,1,ytrain)
+            if i%1==0:
                 tmpscore,tmpperm=validate(mnb,xtrain,ydata,numc)
-                print "%d,%d,%s,%f,%f"%(numc,i,i<iterSN,log_prob,tmpscore)
+                print "%d,%d,%s,%f,%f,%f"%(numc,i,i<iterSN,log_prob,log_prob-oldlog_prob,tmpscore)
+                print >>log,"%d,%d,%s,%f,%f,%f"%(numc,i,i<iterSN,log_prob,log_prob-oldlog_prob,tmpscore)
+        #print "%dth iteration gap of log_prob: %f"%(i,log_prob-old_logprob)
+        if abs(log_prob - oldlog_prob) < stopGAP:
+            if _VERBOSE:
+                print "%f" %(log_prob-oldlog_prob)
+                print "Converged. STOP earlier at %dth iteration"%i
+                print >>log,"Converged. STOP earlier at %dth iteration"%i
+            break
+        oldlog_prob = log_prob
 
     score,perm=validate(mnb,xtrain,ydata,numc)
     log_prob=calcObj(mnb,xtrain,1,ytrain)
     #print "Best one is at %dth iteration"%best_iter
     print "The corresponding score: ",score 
     print "The corresponding log_prob: ", log_prob
+    print >>log,"The corresponding score: ",score 
+    print >>log,"The corresponding log_prob: ", log_prob
+    log.close()
     return mnb,perm
  
 

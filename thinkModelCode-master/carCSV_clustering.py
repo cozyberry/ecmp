@@ -76,6 +76,7 @@ def initData(filename):
     lbin = LabelBinarizer();
     for k in range(np.size(xdata,1)): # loop thru number of columns in xdata
      if k==0:
+      #print "size of initial multi-value class 
       xdata_ml = lbin.fit_transform(xdata[:,k]);
      else:
       xdata_ml = np.hstack((xdata_ml,lbin.fit_transform(xdata[:,k])))
@@ -535,6 +536,13 @@ def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows):
         print >>out_hu,ctitle 
         lct=np.exp(mnb.feature_log_prob_)
         iperm=inv_P(perm)
+        for i in range(0,np.size(lct,0)):
+            line="class %d,"%i
+            for item in lct[iperm[i],:]:
+                line+=",%f"%item
+            print >> out_hu,line
+
+
         
         out_hu.close()
 #Return an inverse of a permutation

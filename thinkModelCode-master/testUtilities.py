@@ -17,6 +17,7 @@ import string
 from time import localtime, strftime, time
 from carCSV_clustering import inv_P
 DATAPATH="/home/wei/data_processing/data/car/car.data"
+ATTRIBUTES = ['buyPrice','maintPrice','numDoors','numPersons','lugBoot','safety']
 
 def initData(filename):
 
@@ -58,17 +59,41 @@ def initData(filename):
      if k==0:
       #print "size of initial multi-value class 
       xdata_ml = lbin.fit_transform(xdata[:,k]);
+      xclasses_= lbin.classes_
       print k
       print lbin.classes_
-      xclasses.append(lbin.classes_])
+      xclasses.append(lbin.classes_)
      else:
       xdata_ml = np.hstack((xdata_ml,lbin.fit_transform(xdata[:,k])))
+      xclasses_ = np.hstack((xclasses_,lbin.classes_))
       print k
       print lbin.classes_
-      xclasses.append(lbin.classes_])
+      xclasses.append(lbin.classes_)
     #print "target set"
     #print np.unique(ydata)
     #ydata_ml = lbin.fit_transform(ydata)
+      print "First two row of data:"
+      print data[0:2,:]
+      print "First two row of numdata:"
+      print numdata[0:2,:]
+      print "First two row of xdata:"
+      print xdata[0:2,:]
+      print "First two row of xdata_ml"
+      print xdata_ml[0:2,:]
+      print "classes"
+      print xclasses_
+      xclasses=xclasses_+1
+      xdata_ml2=xdata_ml[0:2,:]
+      tmp=np.multiply(xdata_ml2,xclasses_)
+      print tmp
+      tmp=tmp[np.nonzero(tmp)]
+      #tmp=tmp[np.nonzero(tmp)].reshape(2,6)
+      print tmp
+      #xindices=np.nonzero(xdata_ml[0:2,:])
+      #print "nonzero indices of first two row of xdata_ml"
+      #print xindices
+
+
     return numrows,xdata_ml,ydata,xdata,data
 if __name__=='__main__':
     initData(DATAPATH)

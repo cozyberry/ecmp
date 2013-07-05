@@ -377,6 +377,16 @@ def NB(data,xdata_ml,ydata,numrows):
     ypredict=mnb.predict(xtest)
     testResult(testdata,xtest,ypredict,ytest,numc,np.size(xtest,0))
 
+def NB_all(data,xdata_ml,ydata,numrows):
+    #testdata,xtrain,ytrain,xtest,ytest=partition(numrows,data,xdata_ml,ydata)
+    if _VERBOSE:
+        print "Size of xtrain: %d * %d"%(np.size(xdata_ml,0),np.size(xdata_ml,1))
+
+    mnb=buildNB(xdata_ml,ydata)
+    print mnb.score(xdata_ml,ydata)
+    numc=len(mnb.classes_)
+    ypredict=mnb.predict(xdata_ml)
+    testResult(data,xdata_ml,ypredict,ydata,numc,np.size(xdata_ml,0))
 
 def main_v1(argv):
     try:
@@ -431,7 +441,7 @@ def main_v1(argv):
         numc=4
         mnb,perm=ECMNB(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
     elif LTYPE == 2:
-        NB(data,xtrain,ydata,numrows)
+        NB_all(data,xtrain,ydata,numrows)
 
     if LTYPE ==0 or LTYPE ==1:
         ypredict0=mnb.predict(xtrain)
@@ -476,7 +486,7 @@ def testResult(data,xdata,ypredict,ydata,numc,numrows):
             prefix+='_l'
         if _DATE:
             outname="%s_%d_s%d_n%d_%s.csv"%(prefix,LTYPE,ITERSN,ITERCN,outputDate)
-            outname_hu="%s_s%d_n%d_%s_hu.csv"%(prefix,LTYPE,ITERSN,ITERCN,outputDate)
+            outname_hu="%s_%d_s%d_n%d_%s_hu.csv"%(prefix,LTYPE,ITERSN,ITERCN,outputDate)
         else:
             outname="%s_%d_s%d_n%d.csv"%(prefix,LTYPE,ITERSN,ITERCN)
             outname_hu="%s_%d_s%d_n%d_hu.csv"%(prefix,LTYPE,ITERSN,ITERCN)

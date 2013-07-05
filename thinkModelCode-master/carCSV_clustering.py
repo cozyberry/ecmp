@@ -375,8 +375,9 @@ def NB(data,xdata_ml,ydata,numrows):
     print mnb.score(xtest,ytest)
     numc=len(mnb.classes_)
     ypredict=mnb.predict(xtest)
-    testResult(testdata,xtest,ypredict,ytest,numc,np.size(xtest,0))
+    testResult(mnb,testdata,xtest,ypredict,ytest,numc,np.size(xtest,0))
 
+#difference between NB_all and NB is just that NB_all use all data as trainning data as well as test data
 def NB_all(data,xdata_ml,ydata,numrows):
     #testdata,xtrain,ytrain,xtest,ytest=partition(numrows,data,xdata_ml,ydata)
     if _VERBOSE:
@@ -386,7 +387,9 @@ def NB_all(data,xdata_ml,ydata,numrows):
     print mnb.score(xdata_ml,ydata)
     numc=len(mnb.classes_)
     ypredict=mnb.predict(xdata_ml)
-    testResult(data,xdata_ml,ypredict,ydata,numc,np.size(xdata_ml,0))
+    perm=tuple(range(0,numc))
+    testResult(mnb,data,xdata_ml,ypredict,ydata,numc,np.size(xdata_ml,0))
+    return mnb,perm
 
 def main_v1(argv):
     try:
@@ -441,7 +444,7 @@ def main_v1(argv):
         numc=4
         mnb,perm=ECMNB(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
     elif LTYPE == 2:
-        NB_all(data,xtrain,ydata,numrows)
+        mnb,perm=NB_all(data,xtrain,ydata,numrows)
 
     if LTYPE ==0 or LTYPE ==1:
         ypredict0=mnb.predict(xtrain)
@@ -449,10 +452,9 @@ def main_v1(argv):
         numy=np.size(ydata,0)
         for i in range(0,numy):
             ypredict[i]=perm[ypredict0[i]]
-        testResult(data,xtrain,ypredict,ydata,numc,numrows)
-    
+        testResult(mnb,perm,data,xtrain,ypredict,ydata,numc,numrows)
 
-def testResult(data,xdata,ypredict,ydata,numc,numrows):
+def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows):
     recall=np.array(np.zeros(numc),float)
     precision=np.array(np.zeros(numc),float)
     tp=np.array(np.zeros(numc),int)
@@ -525,7 +527,22 @@ def testResult(data,xdata,ypredict,ydata,numc,numrows):
             print >>out_hu,"%d,%d,%d,%d,%f,%f"%(i,tp[i],retrived[i],relevant[i],recall[i],precision[i])
 
         print >>out_hu,"overall precision & recall, %f"%(np.float(np.sum(tp))/np.sum(retrived))
+        print >>out_hu,""
+        print >>out_hu,"characteristics:"
+        ctitle="classes\\features"
+        for attr in ATTRIBUTES:
+            ctitle+=",%s"%attr 
+        print >>out_hu,ctitle 
+        lct=np.exp(mnb.feature_log_prob_)
+        iperm=inv_P(perm)
+        
         out_hu.close()
+#Return an inverse of a permutation
+def inv_P(perm):
+    iperm=np.array(perm,int)
+    for i in range(0,len(perm)):
+        iperm[perm[i]] = i
+    return iperm
 
 if __name__=='__main__':
     if len(sys.argv) > 1:

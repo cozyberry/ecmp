@@ -61,7 +61,7 @@ def partition(numrows,xdata_ml,ydata):
     # As suggested by the UCI machine learning repository, do a 2/3 train, 1/3 test split
     allIDX = np.arange(numrows);
     random.shuffle(allIDX); # randomly shuffles allIDX order for creating 'holdout' sample
-    holdout_number = numrows*0.99; # holdout 10% of full sample set to perform validation
+    holdout_number = numrows/10; # holdout 10% of full sample set to perform validation
     testIDX = allIDX[0:holdout_number];
     trainIDX = allIDX[holdout_number:];
 
@@ -85,12 +85,13 @@ def main():
     xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydata)
     print "size of xtrain: %d * %d"%(np.size(xtrain,0),np.size(xtrain,1))
     #To test how the naive_bayes performs when there is only one class label
-    for i in range(0,np.size(ytrain,0)):
-        ytrain[i]=0
+    #for i in range(0,np.size(ytrain,0)):
+        #ytrain[i]=0
     
     print "ytrain"
     print ytrain
     mnb=buildNB(xtrain,ytrain)
+    print "mnb.feature_log_prob_'s dimension: %d * %d"%(np.size(mnb.feature_log_prob_,0),np.size(mnb.feature_log_prob_,1))
     #testmnb(mnb,xtest,ytest)
     #testmnb0(mnb,xtest[0],True)
     print "Classification accuracy of MNB = ", mnb.score(xtest,ytest)

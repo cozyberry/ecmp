@@ -348,7 +348,7 @@ def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
                 print "%d,%d,%s,%f,%f,%f"%(numc,i,i<iterSN,log_prob,log_prob-oldlog_prob,tmpscore)
                 print >>log,"%d,%d,%s,%f,%f,%f"%(numc,i,i<iterSN,log_prob,log_prob-oldlog_prob,tmpscore)
         #print "%dth iteration gap of log_prob: %.15f"%(i,log_prob-oldlog_prob)
-        if abs(log_prob - oldlog_prob) < stopGAP:
+        if log_prob - oldlog_prob < stopGAP and log_prob > oldlog_prob:
             if _VERBOSE:
                 print "%f" %(log_prob-oldlog_prob)
                 print "Converged. STOP earlier at %dth iteration"%i

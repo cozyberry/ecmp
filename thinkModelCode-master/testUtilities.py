@@ -16,8 +16,64 @@ import itertools
 import string
 from time import localtime, strftime, time
 from carCSV_clustering import inv_P
+DATAPATH="/home/wei/data_processing/data/car/car.data"
 
-perm=(1,3,0,2)
-print perm
-iperm=inv_P(perm)
-print iperm
+def initData(filename):
+
+    # Read in data from UCI Machine Learning Repository URL:
+    #url = "http://archive.ics.uci.edu/ml/machine-learning-databases/car/car.data"
+    #webpage = urllib.urlopen(url)
+    webpage=filename
+    datareader = csv.reader(open(webpage,'r'))
+    ct = 0;
+    for row in datareader:
+     ct = ct+1
+    #webpage = urllib.urlopen(url) 
+    datareader = csv.reader(open(webpage,'r'))
+    data = np.array(-1*np.ones((ct,7),float),object);
+    k=0;
+    for row in datareader:
+     data[k,:] = np.array(row)
+     k = k+1;
+
+    #To modify
+    featnames = np.array(ATTRIBUTES,str)
+
+    keys = [[]]*np.size(data,1)
+    numdata = -1*np.ones_like(data);
+    # convert string objects to integer values for modeling:
+    for k in range(np.size(data,1)):
+     keys[k],garbage,numdata[:,k] = np.unique(data[:,k],True,True)
+
+    numrows = np.size(numdata,0); # number of instances in car data set
+    numcols = np.size(numdata,1); # number of columns in car data set
+    numdata = np.array(numdata,int)
+    xdata = numdata[:,:-1]; # x-data is all data BUT the last column which are the class labels
+    ydata = numdata[:,-1]; # y-data is set to class labels in the final column, signified by -1
+
+    # ------------------ numdata multilabel -> binary conversion for NB-Model ---------------------
+    lbin = LabelBinarizer();
+    xclasses=[]
+    for k in range(np.size(xdata,1)): # loop thru number of columns in xdata
+     if k==0:
+      #print "size of initial multi-value class 
+      xdata_ml = lbin.fit_transform(xdata[:,k]);
+      print k
+      print lbin.classes_
+      xclasses.append(lbin.classes_])
+     else:
+      xdata_ml = np.hstack((xdata_ml,lbin.fit_transform(xdata[:,k])))
+      print k
+      print lbin.classes_
+      xclasses.append(lbin.classes_])
+    #print "target set"
+    #print np.unique(ydata)
+    #ydata_ml = lbin.fit_transform(ydata)
+    return numrows,xdata_ml,ydata,xdata,data
+if __name__=='__main__':
+    initData(DATAPATH)
+
+    #perm=(1,3,0,2)
+    #print perm
+    #iperm=inv_P(perm)
+    #print iperm

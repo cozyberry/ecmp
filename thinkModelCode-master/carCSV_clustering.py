@@ -62,6 +62,7 @@ def initData(filename):
 
     keys = [[]]*np.size(data,1)
     numdata = -1*np.ones_like(data);
+    nclasses=[0]
     # convert string objects to integer values for modeling:
     for k in range(np.size(data,1)):
      keys[k],garbage,numdata[:,k] = np.unique(data[:,k],True,True)
@@ -78,12 +79,16 @@ def initData(filename):
      if k==0:
       #print "size of initial multi-value class 
       xdata_ml = lbin.fit_transform(xdata[:,k]);
+      nclasses.append(len(lbin.classes_))
      else:
       xdata_ml = np.hstack((xdata_ml,lbin.fit_transform(xdata[:,k])))
+      nclasses.append(nclasses[-1]+len(lbin.classes_))
     #print "target set"
     #print np.unique(ydata)
     #ydata_ml = lbin.fit_transform(ydata)
-    return numrows,xdata_ml,ydata,xdata,data
+    print "nclasses:"
+    print nclasses
+    return numrows,xdata_ml,ydata,xdata,data,nclasses,keys
 
 def partition1D(numrows,ydata):
     allIDX = np.arange(numrows);
@@ -376,7 +381,8 @@ def NB(data,xdata_ml,ydata,numrows):
     print mnb.score(xtest,ytest)
     numc=len(mnb.classes_)
     ypredict=mnb.predict(xtest)
-    testResult(mnb,testdata,xtest,ypredict,ytest,numc,np.size(xtest,0))
+    perm=tuple(range(0,numc))
+    testResult(mnb,perm,testdata,xtest,ypredict,ytest,numc,np.size(xtest,0),nclasses)
 
 #difference between NB_all and NB is just that NB_all use all data as trainning data as well as test data
 def NB_all(data,xdata_ml,ydata,numrows):
@@ -389,7 +395,6 @@ def NB_all(data,xdata_ml,ydata,numrows):
     numc=len(mnb.classes_)
     ypredict=mnb.predict(xdata_ml)
     perm=tuple(range(0,numc))
-    testResult(mnb,data,xdata_ml,ypredict,ydata,numc,np.size(xdata_ml,0))
     return mnb,perm
 
 def main_v1(argv):
@@ -429,7 +434,7 @@ def main_v1(argv):
             _DATE= True
 
     random.seed()
-    numrows,xdata_ml,ydata,xdata,data=initData(DATAPATH)
+    numrows,xdata_ml,ydata,xdata,data,nclasses,keys=initData(DATAPATH)
     #No need for spliting training data and testing data
     #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
     xtrain=xdata_ml
@@ -446,16 +451,17 @@ def main_v1(argv):
         mnb,perm=ECMNB(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
     elif LTYPE == 2:
         mnb,perm=NB_all(data,xtrain,ydata,numrows)
+        numc=len(mnb.classes_)
 
-    if LTYPE ==0 or LTYPE ==1:
+    if LTYPE ==0 or LTYPE ==1 or LTYPE ==2:
         ypredict0=mnb.predict(xtrain)
         ypredict=np.zeros_like(ypredict0)
         numy=np.size(ydata,0)
         for i in range(0,numy):
             ypredict[i]=perm[ypredict0[i]]
-        testResult(mnb,perm,data,xtrain,ypredict,ydata,numc,numrows)
+        testResult(mnb,perm,data,xtrain,ypredict,ydata,numc,numrows,nclasses,keys)
 
-def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows):
+def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows,nclasses,keys):
     recall=np.array(np.zeros(numc),float)
     precision=np.array(np.zeros(numc),float)
     tp=np.array(np.zeros(numc),int)
@@ -531,15 +537,27 @@ def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows):
         print >>out_hu,""
         print >>out_hu,"characteristics:"
         ctitle="classes\\features"
-        for attr in ATTRIBUTES:
-            ctitle+=",%s"%attr 
+        for i in range(0,len(ATTRIBUTES)):
+            ctitle+=",%s"%ATTRIBUTES[i]
+            ctitle+=','*(nclasses[i+1]-nclasses[i]-1)
         print >>out_hu,ctitle 
-        lct=np.exp(mnb.feature_log_prob_)
+
+        ctitle=""
+        for i in range(0,len(ATTRIBUTES)):
+            for j in range(0,nclasses[i+1]-nclasses[i]):
+                ctitle+=",%s"%keys[i][j]
+        print >>out_hu,ctitle
+        #lct=np.exp(mnb.feature_log_prob_)
+        lct=np.exp(calLCT(mnb.feature_log_prob_,nclasses))
+        print "lct:"
+        print lct
         iperm=inv_P(perm)
         for i in range(0,np.size(lct,0)):
-            line="class %d,"%i
-            for item in lct[iperm[i],:]:
-                line+=",%f"%item
+            line=""
+            for j in range(0,np.size(lct,1)):
+                line+="class %d;%s"%(i,keys[-1][i])
+                for k in range(0,nclasses[j+1]-nclasses[j]):
+                    line+=",%f"%(lct[i,j,k])
             print >> out_hu,line
 
 
@@ -551,6 +569,51 @@ def inv_P(perm):
     for i in range(0,len(perm)):
         iperm[perm[i]] = i
     return iperm
+
+"""
+Parameters:
+    jll: 
+        type: numpy array; shape: [nclass_,nbinaryfeature_]
+    classArray:
+        type: list; format: for each row of jll, item indexes from classArray[i] to classArray[i+1](exclusive) is 
+        the binary result of fiture i
+Return:
+    LCT table:
+        type: ndarray; shape: [nclass_,n_oriFeature,max_nClass]
+"""
+def calLCT(jll,classArray):
+    nClass  =np.size(jll,0)
+    nFeature=np.size(jll,1)
+    ori_nFeature=len(classArray)-1
+    
+    print "nFeature: %d; nClass: %d; ori_nFeature: %d"%(nFeature,nClass,ori_nFeature)
+    if ori_nFeature < 1 or nFeature != classArray[-1]:
+        print "the dimension of given jll: %d * %d is inconsistent with info of classArray: %d!"%(nFeature, nClass,classArray[-1])
+        return None
+
+    nclassArray=classArray-np.roll(classArray,1)
+    max_nClass=np.amax(nclassArray[1:])
+    lct=np.zeros((nClass,ori_nFeature,max_nClass))
+    for i in range(0,nClass):
+        for j in range(0,ori_nFeature):
+            sumij=logsumexp(jll[i,classArray[j]:classArray[j+1]])
+            for k in range(classArray[j],classArray[j+1]):
+                lct[i,j,k-classArray[j]]=jll[i,k]-sumij
+    return lct
+
+def predict_proba(xdata,lct,class_log_prior):
+    #step-1: proba(x|c)
+    nClass  =np.size(lct,0)
+    nFeature=np.size(lct,1)
+    nSample =np.size(xdata,0)
+    res=np.zeros((nSample,nClass))
+    for i in range(0,nSample):
+        for k in range(0,nClass):
+            for j in range(0,nFeature):
+                res[i,k]+=lct[k,j,xdata[i,j]]
+    res=res+class_log_prior
+    log_prob_x = logsumexp(res,axis=1)
+    return np.exp(res-np.atleast_2d(log_prob_x).T)
 
 if __name__=='__main__':
     if len(sys.argv) > 1:

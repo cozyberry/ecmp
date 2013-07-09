@@ -162,6 +162,7 @@ def calcObj(mnb,xtrain,ltype=0,ytrain=None):
                 if ytrain[i] < numc:
                     log_prob+=jll[i,ytrain[i]]
                 else:
+                    print "Ah oh, something goes wrong"
                     log_prob+=0.0
             return log_prob
     else:
@@ -213,28 +214,24 @@ class classMap():
 
         
 """
-Let us be clear. The numc indicates the original number of classes
-Parameters:
-    ydata: the original class label
-    numc : the original number of classes
-Return:
-bestperm: the mapping from original class label to mnb class label
+Old validation function. Deprecated
+"""
 """
 def validate(mnb,xtrain,ydata,numc):
     curnumc=len(mnb.classes_)
     if curnumc != numc:
         print "Oh there has been a class shrimp. "
         print "Original number of classes: %d; Current mnb number of classes :%d"%(numc,curnumc)
-    ypredict0=mnb.predict(xtrain)
+    ypredict=mnb.predict(xtrain)
     #allperms=itertools.permutations(range(0,numc))
     allperms = classMap(numc,curnumc).allMaps()
-    ypredict=np.zeros_like(ypredict0)
+    ydata0=np.zeros_like(ydata)
     numy=np.size(ydata,0)
     maxscore = 0.0
     #bestperm= allperms[0]
     for oneperm in allperms:
         for i in range(0,numy):
-            ypredict[i]=oneperm[ypredict0[i]]
+            ypredict[i]=oneperm[ydata[i]]
         ydiff=ydata-ypredict
         csame=numy-np.count_nonzero(ydiff)
         tmpscore=float(csame)/numy
@@ -244,18 +241,30 @@ def validate(mnb,xtrain,ydata,numc):
 
     return maxscore,bestperm
 """
-Old validation function. Deprecated
 """
+Let us be clear. The numc indicates the original number of classes
+Parameters:
+    ydata: the original class label
+    numc : the original number of classes
+Return:
+bestperm: the mapping from original class label to mnb class label
 """
 def validate1(mnb,xtrain,ydata,numc):
     ypredict=mnb.predict(xtrain)
-    allperms=itertools.permutations(range(0,numc))
+    curnumc=len(mnb.classes_)
+    if curnumc != numc:
+        print "Oh there has been a class shrimp. "
+        print "Original number of classes: %d; Current mnb number of classes :%d"%(numc,curnumc)
+    #allperms=itertools.permutations(range(0,numc))
+    allperms = classMap(numc,curnumc).allMaps()
     ydata0=np.zeros_like(ydata)
     numy=np.size(ydata,0)
     maxscore = 0.0
-    #bestperm= allperms[0]
+    bestperm= None
+
     for oneperm in allperms:
         for i in range(0,numy):
+            #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ydata0[i]=oneperm[ydata[i]]
         #print oneperm
         #for j in range(numy-10,numy-1):
@@ -263,11 +272,23 @@ def validate1(mnb,xtrain,ydata,numc):
             #print "ydata0[%d]: %d"%(j,ydata0[j])
         tmpscore=mnb.score(xtrain,ydata0)
         if tmpscore > maxscore:
+            #print "switch"
             maxscore = tmpscore
             bestperm=oneperm
-
+    if maxscore < 0.05:
+        print "Strange."
+        print "len of allperms: ",len(allperms)
+        tmpout=open(os.path.join(OUTPUTDIR,"strange.csv"),'w')
+        print >>tmpout,"allperms"
+        for item in allperms:
+            print >>tmpout,item
+        print >>tmpout,"curnumc: %d;numc: %d"%(curnumc,numc)
+        print >>tmpout,",predicted value,original value" 
+        for i in range(0,numy):
+            print >>tmpout,"%dth item,%d,%d"%(i,ypredict[i],ydata[i])
+        tmpout.close()
     return maxscore,bestperm
-"""
+
 def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
     if _VERBOSE:
         prefix="clusteringLOG"
@@ -310,13 +331,13 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
             if _VERBOSE:
                 if i%10 ==0 and i!=(iterCN-1):
                     log_prob=calcObj(mnb,xtrain)
-                    tmpscore,tmpperm=validate(mnb,xtrain,ydata,numc)
+                    tmpscore,tmpperm=validate1(mnb,xtrain,ydata,numc)
                     print "%d,%d,%d,%f,%f,%f,%f,%f,Still in CN Loop"%(numc,j+1,i+1,log_prob,diff,tmpscore,bestlog_prob,best_accu)
                     print >>log,"%d,%d,%d,%f,%f,%f,%f,%f,Still in CN Loop"%(numc,j+1,i+1,log_prob,diff,tmpscore,bestlog_prob,best_accu)
 
 
         final_log_prob = calcObj(mnb,xtrain)
-        score,tmpperm=validate(mnb,xtrain,ydata,numc)
+        score,tmpperm=validate1(mnb,xtrain,ydata,numc)
         if _MAXLOG:
             if final_log_prob > bestlog_prob:
                 _noconflict = True
@@ -354,7 +375,8 @@ def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
     print >>log,"The corresponding log_prob: ", bestlog_prob
     log.close()
     return bestMNB,best_perm
-
+#########In clustering I don'ttttttttttttttttt care the classification label!!!!!!!!!!!!!!
+#########Do not forgeeeeeeeeeeeeeeeeeeeeeeeeeet it!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
     if _VERBOSE:
         prefix="clusteringLOG"
@@ -386,13 +408,16 @@ def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
                 yproba_j=mnb.predict_proba(xtrain[j])
             #S-step
                 rclass_j=np.random.multinomial(1,yproba_j[0],size=1)
-                ytrain[j]=np.nonzero(rclass_j[0])[0][0]
+                #ytrain[j]=np.nonzero(rclass_j[0])[0][0]
+                ytrain[j]=np.argmax(rclass_j[0])
                 #if i==0 and ytrain[j]==4:
                     #print "ytrain[%d]: %d"%(j,ytrain[j])
                     #print yproba_j
         else:
         #E-step and C-step
             ytrain = mnb.predict(xtrain)
+    #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ykeys,ytrain = np.unique(ytrain,return_inverse=True)
         curnumc=np.size(np.unique(ytrain),0)
         if curnumc == 1:
             if _VERBOSE:
@@ -406,13 +431,17 @@ def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
         #print diff
         #if diff < 5:
         #    break
-
+        
         log_prob=calcObj(mnb,xtrain,1,ytrain)
         if _VERBOSE:
-            if i%10==0:
-                tmpscore,tmpperm=validate(mnb,xtrain,ydata,numc)
+            if i%20==0 or i >=iterSN:
+                tmpscore,tmpperm=validate1(mnb,xtrain,ydata,numc)
+                
                 print "%d,%d,%s,%f,%f,%f"%(numc,i,i<iterSN,log_prob,log_prob-oldlog_prob,tmpscore)
                 print >>log,"%d,%d,%s,%f,%f,%f"%(numc,i,i<iterSN,log_prob,log_prob-oldlog_prob,tmpscore)
+                if tmpperm == None:
+                    "Oh perm None"
+                    break 
         #print "%dth iteration gap of log_prob: %.15f"%(i,log_prob-oldlog_prob)
         if log_prob - oldlog_prob < stopGAP and log_prob > oldlog_prob:
             if _VERBOSE:
@@ -422,7 +451,7 @@ def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
             break
         oldlog_prob = log_prob
 
-    score,perm=validate(mnb,xtrain,ydata,numc)
+    score,perm=validate1(mnb,xtrain,ydata,numc)
     log_prob=calcObj(mnb,xtrain,1,ytrain)
     #print "Best one is at %dth iteration"%best_iter
     print "The corresponding score: ",score 
@@ -515,18 +544,19 @@ def main_v1(argv):
 
     if LTYPE ==0 or LTYPE ==1 or LTYPE ==2:
         ypredict=mnb.predict(xtrain)
-        ydata0=np.zeros_like(ydata)
-        numy=np.size(ydata,0)
-        for i in range(0,numy):
-            ydata0[i]=perm[ydata[i]]
         print "first 30 rows of ypredict:"
         print ypredict[0:30]  
-        print "first 30 rows of mapped ydata:"
-        print ydata0[0:30]  
-        testResult(mnb,perm,data,xtrain,ypredict,ydata0,numc,numrows,nfeatures,keys)
+        #print "first 30 rows of ydata:"
+        #print ydata0[0:30]  
+        testResult(mnb,perm,data,xtrain,ypredict,ydata,numc,numrows,nfeatures,keys)
 
-def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows,nfeatures,keys):
+def testResult(mnb,perm,data,xdata,ypredict,ori_ydata,numc,numrows,nfeatures,keys):
     curnumc = len(mnb.classes_)
+    if perm == None:
+        perm = classMap(numc,curnumc).next()
+    ydata=np.zeros_like(ori_ydata)
+    for i in range(0,numrows):
+        ydata[i]=perm[ori_ydata[i]]
     recall=np.array(np.zeros(curnumc),float)
     precision=np.array(np.zeros(curnumc),float)
     tp=np.array(np.zeros(curnumc),int)
@@ -537,6 +567,7 @@ def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows,nfeatures,keys):
     print "first 30 rows of ydata:"
     print ydata[0:30]  
 
+    dist = np.zeros((curnumc,numc))
     for i in range(0,curnumc):
         a=(ypredict==i)
         b=(ydata==i)
@@ -552,6 +583,9 @@ def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows,nfeatures,keys):
         else:
             precision[i] = 0.0
         print "class %d: true_positive %d,retrived %d,relevant %d,recall %f, precision %f"%(i,tp[i],retrived[i],relevant[i],recall[i],precision[i])
+        for j in range(0,numc):
+            oj = (ori_ydata == j)
+            dist[i][j]=np.sum(np.multiply(a,oj))
 
     print "overall precision & recall: %f"%(np.float(np.sum(tp))/np.sum(retrived))
     #print "overall recall: %f"%(np.float(np.sum(tp))/np.sum(relevant))
@@ -608,10 +642,8 @@ def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows,nfeatures,keys):
         print "number of class: %d; number of original features: %d"%(np.size(lct,0),np.size(lct,1))
         print "mapping information:"
         for i in range(0,len(perm)):
-            print "%d ==> %d"%(i,perm[i])
-        print "keys information:"
-        for i in range (0,len(keys[-1])):
-            print "%s ==> class %d"%(keys[-1][i],i)
+            print "%s ==> class %d ==> clustering class %d"%(keys[-1][i],i,perm[i])
+
         print >>out_hu,"keys information:"
         for i in range (0,len(keys[-1])):
             print >>out_hu,"%s ==> class %d"%(keys[-1][i],i)
@@ -619,6 +651,18 @@ def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows,nfeatures,keys):
         print >>out_hu,"mapping information:"
         for i in range(0,len(perm)):
             print >>out_hu,"%d ==> %d"%(i,perm[i])
+        print >>out_hu,""
+        print >>out_hu,"distribution:"
+        title =""
+        for i in range(0,curnumc):
+            title+=',class %d'%i
+        print >>out_hu,title
+        for i in range(0,numc):
+            title=keys[-1][i]
+            for j in range(0,curnumc):
+                #tmp = float(dist[j][i])/np.sum(dist[j,:])
+                title+=",%d"%dist[j,i]
+            print >>out_hu,title
         print >>out_hu,""
 
         print >>out_hu,"characteristics:"

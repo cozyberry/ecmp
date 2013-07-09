@@ -167,10 +167,67 @@ def calcObj(mnb,xtrain,ltype=0,ytrain=None):
     else:
         print "Oh I don't know how to calculate this type of likelihood ", ltype
         sys.exit(1)
-    
+"""
+Right now we only consider full mapping. man she
+"""
+class classMap():
+    def __init__(self,numc,curnumc):
+        self.curIter = 0
+        self.curnumc = curnumc
+        self.numc    = numc
+
+        if curnumc <= numc:
+            self.nMap    = pow(curnumc,numc)
+        else:
+            print "Not implemented yet!"
+
+    def next(self):
+        while self.curIter < self.nMap:
+            perm=[]
+            a = self.curIter 
+            for i in range(0,self.numc):
+                a,b=divmod(a,self.curnumc)
+                perm.append(b)
+                
+            self.curIter+=1
+            if len(np.unique(perm)) == self.curnumc:
+                return perm
+
+        return None
+
+    def allMaps(self,fromBeg=True):
+        permSet=[] 
+        if fromBeg:
+            self.curIter = 0
+        while True:
+            perm = self.next()
+            if perm != None:
+                permSet.append(perm)
+            else:
+                break
+        return permSet
+            
+    def printInfo(self):
+        print "curIter: %d; curnumc: %d; numc:%d"%(self.curIter,self.curnumc,self.numc)
+
+
+        
+"""
+Let us be clear. The numc indicates the original number of classes
+Parameters:
+    ydata: the original class label
+    numc : the original number of classes
+Return:
+bestperm: the mapping from original class label to mnb class label
+"""
 def validate(mnb,xtrain,ydata,numc):
+    curnumc=len(mnb.classes_)
+    if curnumc != numc:
+        print "Oh there has been a class shrimp. "
+        print "Original number of classes: %d; Current mnb number of classes :%d"%(numc,curnumc)
     ypredict0=mnb.predict(xtrain)
-    allperms=itertools.permutations(range(0,numc))
+    #allperms=itertools.permutations(range(0,numc))
+    allperms = classMap(numc,curnumc).allMaps()
     ypredict=np.zeros_like(ypredict0)
     numy=np.size(ydata,0)
     maxscore = 0.0
@@ -186,7 +243,10 @@ def validate(mnb,xtrain,ydata,numc):
             bestperm=oneperm
 
     return maxscore,bestperm
-
+"""
+Old validation function. Deprecated
+"""
+"""
 def validate1(mnb,xtrain,ydata,numc):
     ypredict=mnb.predict(xtrain)
     allperms=itertools.permutations(range(0,numc))
@@ -207,7 +267,7 @@ def validate1(mnb,xtrain,ydata,numc):
             bestperm=oneperm
 
     return maxscore,bestperm
-
+"""
 def EMNB_csv(xtrain,ydata,numc,numrows,iterSN,iterCN):
     if _VERBOSE:
         prefix="clusteringLOG"
@@ -434,7 +494,7 @@ def main_v1(argv):
             _DATE= True
 
     random.seed()
-    numrows,xdata_ml,ydata,xdata,data,nclasses,keys=initData(DATAPATH)
+    numrows,xdata_ml,ydata,xdata,data,nfeatures,keys=initData(DATAPATH)
     #No need for spliting training data and testing data
     #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
     xtrain=xdata_ml
@@ -450,26 +510,34 @@ def main_v1(argv):
         numc=4
         mnb,perm=ECMNB(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
     elif LTYPE == 2:
+        numc=len(keys[-1])
         mnb,perm=NB_all(data,xtrain,ydata,numrows)
-        numc=len(mnb.classes_)
 
     if LTYPE ==0 or LTYPE ==1 or LTYPE ==2:
-        ypredict0=mnb.predict(xtrain)
-        ypredict=np.zeros_like(ypredict0)
+        ypredict=mnb.predict(xtrain)
+        ydata0=np.zeros_like(ydata)
         numy=np.size(ydata,0)
         for i in range(0,numy):
-            ypredict[i]=perm[ypredict0[i]]
-        testResult(mnb,perm,data,xtrain,ypredict,ydata,numc,numrows,nclasses,keys)
+            ydata0[i]=perm[ydata[i]]
+        print "first 30 rows of ypredict:"
+        print ypredict[0:30]  
+        print "first 30 rows of mapped ydata:"
+        print ydata0[0:30]  
+        testResult(mnb,perm,data,xtrain,ypredict,ydata0,numc,numrows,nfeatures,keys)
 
-def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows,nclasses,keys):
-    recall=np.array(np.zeros(numc),float)
-    precision=np.array(np.zeros(numc),float)
-    tp=np.array(np.zeros(numc),int)
-    retrived=np.array(np.zeros(numc),int)
-    relevant=np.array(np.zeros(numc),int)
-    
+def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows,nfeatures,keys):
+    curnumc = len(mnb.classes_)
+    recall=np.array(np.zeros(curnumc),float)
+    precision=np.array(np.zeros(curnumc),float)
+    tp=np.array(np.zeros(curnumc),int)
+    retrived=np.array(np.zeros(curnumc),int)
+    relevant=np.array(np.zeros(curnumc),int)
+    print "first 30 rows of ypredict:"
+    print ypredict[0:30]  
+    print "first 30 rows of ydata:"
+    print ydata[0:30]  
 
-    for i in range(0,numc):
+    for i in range(0,curnumc):
         a=(ypredict==i)
         b=(ydata==i)
         tp[i]=np.sum(np.multiply(a,b))
@@ -530,39 +598,57 @@ def testResult(mnb,perm,data,xdata,ypredict,ydata,numc,numrows,nclasses,keys):
         print >>out_hu,""
         print >>out_hu,"statistique:"
         print >>out_hu,"class,true_positive,retrived,relevant,recall,precision"
-        for i in range(0,numc):
+        for i in range(0,curnumc):
             print >>out_hu,"%d,%d,%d,%d,%f,%f"%(i,tp[i],retrived[i],relevant[i],recall[i],precision[i])
 
         print >>out_hu,"overall precision & recall, %f"%(np.float(np.sum(tp))/np.sum(retrived))
         print >>out_hu,""
+
+        lct=np.exp(calLCT(mnb.feature_log_prob_,nfeatures))
+        print "number of class: %d; number of original features: %d"%(np.size(lct,0),np.size(lct,1))
+        print "mapping information:"
+        for i in range(0,len(perm)):
+            print "%d ==> %d"%(i,perm[i])
+        print "keys information:"
+        for i in range (0,len(keys[-1])):
+            print "%s ==> class %d"%(keys[-1][i],i)
+        print >>out_hu,"keys information:"
+        for i in range (0,len(keys[-1])):
+            print >>out_hu,"%s ==> class %d"%(keys[-1][i],i)
+        print >>out_hu,""
+        print >>out_hu,"mapping information:"
+        for i in range(0,len(perm)):
+            print >>out_hu,"%d ==> %d"%(i,perm[i])
+        print >>out_hu,""
+
         print >>out_hu,"characteristics:"
+        """
         ctitle="classes\\features"
         for i in range(0,len(ATTRIBUTES)):
             ctitle+=",%s"%ATTRIBUTES[i]
-            ctitle+=','*(nclasses[i+1]-nclasses[i]-1)
+            ctitle+=','*(nfeatures[i+1]-nfeatures[i])
         print >>out_hu,ctitle 
 
         ctitle=""
         for i in range(0,len(ATTRIBUTES)):
-            for j in range(0,nclasses[i+1]-nclasses[i]):
+            for j in range(0,nfeatures[i+1]-nfeatures[i]):
                 ctitle+=",%s"%keys[i][j]
         print >>out_hu,ctitle
         #lct=np.exp(mnb.feature_log_prob_)
-        lct=np.exp(calLCT(mnb.feature_log_prob_,nclasses))
         print "lct:"
         print lct
-        iperm=inv_P(perm)
         for i in range(0,np.size(lct,0)):
             line=""
             for j in range(0,np.size(lct,1)):
-                line+="class %d;%s"%(i,keys[-1][i])
-                for k in range(0,nclasses[j+1]-nclasses[j]):
-                    line+=",%f"%(lct[i,j,k])
+                line+="class %d;%s,"%(i,keys[-1][i])
+                for k in range(0,nfeatures[j+1]-nfeatures[j]):
+                    line+="%f,"%(lct[i,j,k])
             print >> out_hu,line
 
-
-        
+        """
+        outputLCT(lct,keys,out_hu)
         out_hu.close()
+
 #Return an inverse of a permutation
 def inv_P(perm):
     iperm=np.array(perm,int)
@@ -570,6 +656,24 @@ def inv_P(perm):
         iperm[perm[i]] = i
     return iperm
 
+def outputLCT(lct,keys,out=None):
+    if out == None:
+        out=sys.stdout
+    nFeature = np.size(lct,1)
+    curnumc     = np.size(lct,0)
+
+    for i in range(0,nFeature):
+        title=ATTRIBUTES[i]
+        for j in range(0,len(keys[-1])):
+            title+=',class %d'%j
+        print >>out,title
+        for j in range(0,len(keys[i])):
+            title=keys[i][j]
+            for k in range(0,curnumc):
+                frac = lct[k,i,j]
+                title+=",%f"%frac
+            print >>out,title
+        print >> out,"" 
 """
 Parameters:
     jll: 

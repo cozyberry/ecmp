@@ -15,6 +15,7 @@ import getopt
 import itertools
 import string
 from time import localtime, strftime, time
+import copy
 
 DATAPATH="/home/wei/data_processing/data/car/car.data"
 ITERCN = 20
@@ -70,6 +71,9 @@ def initData(filename):
     numrows = np.size(numdata,0); # number of instances in car data set
     numcols = np.size(numdata,1); # number of columns in car data set
     numdata = np.array(numdata,int)
+    #allIDX = np.arange(numrows);
+    #random.shuffle(allIDX); # randomly shuffles allIDX order for creating 'holdout' sample
+    #numdata=numdata[allIDX]
     xdata = numdata[:,:-1]; # x-data is all data BUT the last column which are the class labels
     ydata = numdata[:,-1]; # y-data is set to class labels in the final column, signified by -1
 
@@ -418,13 +422,19 @@ def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
             ytrain = mnb.predict(xtrain)
     #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ykeys,ytrain = np.unique(ytrain,return_inverse=True)
-        curnumc=np.size(np.unique(ytrain),0)
+        #curnumc=np.size(np.unique(ytrain),0)
+        curnumc=len(ykeys)
+        if i >= iterSN:
+            print "%dth iteration curnumc: %d"%(i,curnumc)
+            print "jll:"
+            print oldmnb.coef_
         if curnumc == 1:
             if _VERBOSE:
                 print "Only One class is predicted. STOP earlier at %dth iteration"%i
                 print >>log,"Only One class is predicted. STOP earlier at %dth iteration"%i
             break
     #M-step
+        oldmnb=copy.deepcopy(mnb)
         mnb=buildNB(xtrain,ytrain)
         #diffytrain=ytrain-oldytrain
         #diff=LA.norm(diffytrain)
@@ -450,7 +460,16 @@ def ECMNB(xtrain,ydata,numc,numrows,iterSN,iterCN):
                 print >>log,"Converged. STOP earlier at %dth iteration"%i
             break
         oldlog_prob = log_prob
-
+    print "mnb:"
+    print mnb.coef_
+    print mnb.intercept_
+    mnb=oldmnb
+    print "oldmnb jll:"
+    print oldmnb.coef_
+    print oldmnb.intercept_
+    print "mnb:"
+    print mnb.coef_
+    print mnb.intercept_
     score,perm=validate1(mnb,xtrain,ydata,numc)
     log_prob=calcObj(mnb,xtrain,1,ytrain)
     #print "Best one is at %dth iteration"%best_iter
@@ -526,7 +545,8 @@ def main_v1(argv):
     numrows,xdata_ml,ydata,xdata,data,nfeatures,keys=initData(DATAPATH)
     #No need for spliting training data and testing data
     #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
-    xtrain=xdata_ml
+    #xtrain=xdata_ml
+    testdata,xtrain,ytrain,xtest,ytest=partition(numrows,data,xdata_ml,ydata)
     #Right now it is the basic EM + NB model. Here we don't introduct stochastic operation
     if LTYPE ==0 or LTYPE ==1:
         print "nonstochastic iteration time is set at: " ,ITERCN
@@ -534,21 +554,21 @@ def main_v1(argv):
     
     if LTYPE == 0:
         numc=4
-        mnb,perm=EMNB_csv(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
+        mnb,perm=EMNB_csv(xtrain,ytrain,numc,np.size(xtrain,0),ITERSN,ITERCN)
     elif LTYPE == 1:
         numc=4
-        mnb,perm=ECMNB(xtrain,ydata,numc,numrows,ITERSN,ITERCN)
+        mnb,perm=ECMNB(xtrain,ytrain,numc,np.size(xtrain,0),ITERSN,ITERCN)
     elif LTYPE == 2:
         numc=len(keys[-1])
         mnb,perm=NB_all(data,xtrain,ydata,numrows)
 
     if LTYPE ==0 or LTYPE ==1 or LTYPE ==2:
-        ypredict=mnb.predict(xtrain)
+        ypredict=mnb.predict(xtest)
         print "first 30 rows of ypredict:"
         print ypredict[0:30]  
         #print "first 30 rows of ydata:"
         #print ydata0[0:30]  
-        testResult(mnb,perm,data,xtrain,ypredict,ydata,numc,numrows,nfeatures,keys)
+        testResult(mnb,perm,testdata[:,:-1],xtest,ypredict,ytest,numc,np.size(xtest,0),nfeatures,keys)
 
 def testResult(mnb,perm,data,xdata,ypredict,ori_ydata,numc,numrows,nfeatures,keys):
     curnumc = len(mnb.classes_)

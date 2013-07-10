@@ -8,6 +8,7 @@ import csv
 import random
 import urllib
 from sklearn.utils.extmath import safe_sparse_dot, logsumexp
+import copy
 
 DATAPATH="/home/wei/data_processing/data/car/car.data"
 
@@ -91,6 +92,10 @@ def main():
     print "ytrain"
     print ytrain
     mnb=buildNB(xtrain,ytrain)
+    oldmnb = mnb
+    mnb.feature_log_prob_=np.zeros_like(mnb.coef_,float)
+    print "oldmnb after modification"
+    print oldmnb.coef_
     #testmnb(mnb,xtest,ytest)
     #testmnb0(mnb,xtest[0],True)
     print "Classification accuracy of MNB = ", mnb.score(xtest,ytest)

@@ -30,7 +30,7 @@ LOGDIR='/home/wei/share/carClustering/logs/'
 LTYPE = 0
 
 def usage():
-    print "%s [-c type_of_likelihood] [-n nonstochastic_iteration_times] [-s stochastic_iteration_times] [-v] [-l] [-o] [-d]"%sys.argv[0]
+    print "%s [-c type_of_likelihood] [-n nonstochastic_iteration_times] [-s stochastic_iteration_times] [-v] [-l] [-o] [-d] [-k initial clustering number]"%sys.argv[0]
     print "     [-c type_of_likelihood]: 0 for normal likelihood;1 for classification likelihood;2 for naive bayesian network. 0 By default"
     print "     [-n iteration_times]: set nonstochastic iteration times for EM method. Default is 20"
     print "     [-s stochastic_iteration_times]: set stochastic iteration times for EM method. Default is 1"
@@ -38,6 +38,8 @@ def usage():
     print "     [-l]: set objective of maximization of log likelihood; by default maximiation of score. Need to analysize further"
     print "     [-o]: output predicted class label and original label as well for further analysis"
     print "     [-d]: output file name with time stamp, only valid together with -o option"
+    print "     [-p]: set partition mode."
+    print "     [-k initial clustering number]: set an initial clustering number for EMNB or ECMNB."
 
 
 def initData(filename):
@@ -122,11 +124,11 @@ def partition(numrows,data,xdata_ml,ydata):
     testdata=data[testIDX,:]
     return testdata,xtrain,ytrain,xtest,ytest
 
-def buildNB(xtrain,ytrain):
+def buildNB(xtrain,ytrain,alpha=1.0):
 
     # ------------------------------ Naive_Bayes Model Construction ------------------------------
     # ------------------------------  MultinomialNB & ComplementNB  ------------------------------
-    mnb = naive_bayes.MultinomialNB();
+    mnb = naive_bayes.MultinomialNB(alpha=alpha);
     mnb.fit(xtrain,ytrain);
     return mnb
 
@@ -507,7 +509,7 @@ def NB_all(data,xdata_ml,ydata,numrows):
 
 def main_v1(argv):
     try:
-        opts, args = getopt.getopt(argv,"hc:n:s:vlod",["help"])
+        opts, args = getopt.getopt(argv,"hc:n:s:k:vlodp",["help"])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -520,14 +522,16 @@ def main_v1(argv):
     global LTYPE
     global OUTPUTDIR 
     global LOGDIR 
+    _PARTITION = False
+    numc = 4
     for opt,arg in opts:
         if opt in ("-h","--help"):           
             usage()
             sys.exit(0)
         elif opt in ("-c"):
             LTYPE = int(arg)
-            if LTYPE != 0 and LTYPE !=1 and LTYPE!=2:
-                print "Oh I don't know this type of likelihood: %d"
+            #if LTYPE != 0 and LTYPE !=1 and LTYPE!=2:
+                #print "Oh I don't know this type of likelihood: %d"
         elif opt in ("-n"):
             ITERCN = int(arg)
         elif opt in ("-s"):
@@ -540,35 +544,63 @@ def main_v1(argv):
             _OUTPUT= True
         elif opt in ("-d"):
             _DATE= True
+        elif opt in ("-p"):
+            _PARTITION= True
+        elif opt in ("-k"):
+            numc = int(arg)
 
     random.seed()
     numrows,xdata_ml,ydata,xdata,data,nfeatures,keys=initData(DATAPATH)
     #No need for spliting training data and testing data
     #xtrain,ytrain,xtest,ytest=partition(numrows,xdata_ml,ydataf)
-    #xtrain=xdata_ml
-    testdata,xtrain,ytrain,xtest,ytest=partition(numrows,data,xdata_ml,ydata)
+    if _PARTITION:
+        testdata,xtrain,ytrain,xtest,ytest=partition(numrows,data,xdata_ml,ydata)
+    else:
+        xtrain=xdata_ml
+        ytrain=ydata
+        testdata=data
+        xtest=xtrain
+        ytest=ydata
+        
     #Right now it is the basic EM + NB model. Here we don't introduct stochastic operation
     if LTYPE ==0 or LTYPE ==1:
         print "nonstochastic iteration time is set at: " ,ITERCN
         print "stochastic iteration time is set at: " ,ITERSN
     
     if LTYPE == 0:
-        numc=4
         mnb,perm=EMNB_csv(xtrain,ytrain,numc,np.size(xtrain,0),ITERSN,ITERCN)
     elif LTYPE == 1:
-        numc=4
         mnb,perm=ECMNB(xtrain,ytrain,numc,np.size(xtrain,0),ITERSN,ITERCN)
     elif LTYPE == 2:
         numc=len(keys[-1])
         mnb,perm=NB_all(data,xtrain,ydata,numrows)
+        print "keys"
+        print keys
+        print "alpha: ",mnb.alpha
 
-    if LTYPE ==0 or LTYPE ==1 or LTYPE ==2:
+    else:
+        print "LTYPE: ",LTYPE
+        mnb = naive_bayes.MultinomialNB(fit_prior=False);
+        mnb.class_prior=None
+        mnb.classes_=[]
+        print mnb.classes_
+        print "mnb.nclasses:",len(mnb.classes_)
+        mnb.fit(xtrain,None);
+        print "Hello"
+        perm=[0,1,2,3]
+        numc = 4 
+        print "mnb.log"
+        print mnb.classes_
+        print mnb.intercept_
+
+    if LTYPE ==0 or LTYPE ==1 or LTYPE ==2 or LTYPE == 3:
         ypredict=mnb.predict(xtest)
         print "first 30 rows of ypredict:"
         print ypredict[0:30]  
         #print "first 30 rows of ydata:"
         #print ydata0[0:30]  
         testResult(mnb,perm,testdata[:,:-1],xtest,ypredict,ytest,numc,np.size(xtest,0),nfeatures,keys)
+            
 
 def testResult(mnb,perm,data,xdata,ypredict,ori_ydata,numc,numrows,nfeatures,keys):
     curnumc = len(mnb.classes_)
